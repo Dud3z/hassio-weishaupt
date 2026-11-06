@@ -8,6 +8,9 @@
                     "error": "mdi:lan-disconnect",
                     "suspended": "mdi:pause-circle"
                 }
+            },
+            "naechste_wartung": {
+                "default": "mdi:wrench-clock"
             }
         },
         "switch": {
@@ -22,6 +25,11 @@
                 "state": {
                     "on": "mdi:pause-circle"
                 }
+            }
+        },
+        "button": {
+            "wartung_erledigt": {
+                "default": "mdi:wrench-check"
             }
         }
     }

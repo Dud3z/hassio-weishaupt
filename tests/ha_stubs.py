@@ -309,6 +309,7 @@ def _install() -> None:
         async_get=lambda hass: fake_device_registry,
     )
     _module("homeassistant.helpers.entity_platform", AddEntitiesCallback=object)
+    _module("homeassistant.helpers.selector", DateSelector=lambda *args, **kwargs: str)
     _module("homeassistant.helpers.service_info", package=True)
     _module("homeassistant.helpers.service_info.dhcp", DhcpServiceInfo=SimpleNamespace)
     _module("homeassistant.data_entry_flow", AbortFlow=AbortFlow)

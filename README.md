@@ -56,6 +56,8 @@ http://admin:Admin123@wem-sg/ajax/CanApiJson.json
 
 Home Assistant also offers the setup by itself when a Systemgerät with the hostname `wem-sg` joins the network. If the address of the Systemgerät changes, enter the new one under **Reconfigure**; entities, history and automations are kept. The scan interval can be changed later under **Configure**. If the device rejects the stored password, Home Assistant asks for new credentials (**Re-authenticate**) and checks them against the device before storing them.
 
+Under **Configure** you can also set a maintenance interval (months) and the date of the last maintenance. A *Nächste Wartung* sensor then shows the due date, a *Wartung erledigt* button records today, and a notice appears under **Settings → Repairs** once it is due. Repairs also lists a fault reported by the Systemgerät and a device clock that is more than 5 minutes off.
+
 **Download diagnostics** on the integration page returns the raw register values, the detected modules and the connection state, with host, username and password removed. Attach it to bug reports.
 
 ## Sensors

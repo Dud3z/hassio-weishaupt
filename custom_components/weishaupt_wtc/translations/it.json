@@ -339,11 +339,17 @@
                     "suspended": "Sospeso manualmente",
                     "error": "Errore"
                 }
+            },
+            "naechste_wartung": {
+                "name": "Prossima manutenzione"
             }
         },
         "button": {
             "sg_warmwasser_push": {
                 "name": "Boost ACS"
+            },
+            "wartung_erledigt": {
+                "name": "Manutenzione eseguita"
             }
         },
         "switch": {
@@ -366,7 +372,13 @@
                 "title": "Opzioni Weishaupt WTC",
                 "description": "I registri non vengono comunque letti più spesso di quanto consentito dalla loro classe di aggiornamento Weishaupt (30 s, 60 s o 10 min).",
                 "data": {
-                    "scan_interval": "Intervallo di scansione (secondi)"
+                    "scan_interval": "Intervallo di scansione (secondi)",
+                    "maintenance_interval_months": "Intervallo di manutenzione (mesi)",
+                    "last_maintenance": "Ultima manutenzione"
+                },
+                "data_description": {
+                    "maintenance_interval_months": "0 disattiva il promemoria di manutenzione.",
+                    "last_maintenance": "La prossima manutenzione è prevista un intervallo dopo questa data. Il pulsante 'Manutenzione eseguita' la imposta a oggi."
                 }
             }
         }
@@ -375,6 +387,18 @@
         "device_unresponsive": {
             "title": "Il dispositivo Weishaupt non risponde",
             "description": "{title} non risponde correttamente da {minutes} minuti. L'integrazione sospende le richieste e riprova al massimo ogni 30 minuti.\n\nCause note:\n- La connessione al WEM Portal (cloud) è attiva. Non può essere usata insieme all'interfaccia locale; disattivarla nelle impostazioni del Systemgerät.\n- Un altro client (app, Node-RED, una seconda integrazione) usa contemporaneamente l'interfaccia JSON.\n- L'interfaccia JSON è bloccata dopo troppe richieste a registri sconosciuti. Aiuta solo spegnere e riaccendere il riscaldamento (alimentazione).\n\nQuesto avviso scompare non appena il dispositivo risponde di nuovo."
+        },
+        "device_fault": {
+            "title": "Il riscaldamento Weishaupt segnala un guasto",
+            "description": "{title} segnala: {meldung} (numero di errore {fehlernummer}). Controllare il display della caldaia e il manuale, oppure contattare il tecnico. Questo avviso scompare quando il guasto è risolto."
+        },
+        "clock_drift": {
+            "title": "L'orologio del riscaldamento Weishaupt non è corretto",
+            "description": "L'orologio di {title} differisce di circa {minutes} minuti dall'ora di Home Assistant, ad esempio dopo il cambio dell'ora o un'interruzione di corrente. I programmi orari commutano quindi all'ora sbagliata. Impostare l'ora sul Systemgerät; questo avviso scompare quando è corretta."
+        },
+        "maintenance_due": {
+            "title": "Manutenzione del riscaldamento scaduta",
+            "description": "La manutenzione di {title} era prevista il {due}. Dopo la manutenzione premere il pulsante 'Manutenzione eseguita'; l'avviso scompare."
         }
     }
 }

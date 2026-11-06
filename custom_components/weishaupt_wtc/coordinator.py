@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 import logging
 import time
+from zoneinfo import ZoneInfo
 from collections.abc import Callable, Iterable
 from datetime import timedelta
 from typing import Any
@@ -21,7 +23,15 @@ from .api import (
     WeishauptConnectionError,
 )
 from .const import DOMAIN
+from .health import (
+    CLOCK_DRIFT_LIMIT_MINUTES,
+    FAULT_BLOCK_KEY,
+    active_fault,
+    clock_drift_minutes,
+    next_maintenance,
+)
 from .sensors import (
+    DEVICE_TIME_KEYS,
     OPTIONAL_GROUPS,
     POLLED_SENSORS,
     WeishauptDeviceGroup,
@@ -35,6 +45,11 @@ type WeishauptConfigEntry = ConfigEntry[WeishauptDataUpdateCoordinator]
 # A device that has not answered for this long gets a repair issue explaining
 # the known causes (portal, second client, lock-up until power cycle).
 UNRESPONSIVE_ISSUE_AFTER = 1800  # seconds
+# The clock check reads the device time this often, even with its entity disabled.
+CLOCK_CHECK_INTERVAL = 600  # seconds
+# Drifted readings in a row before warning; one alone may be the date register
+# lagging the time registers around midnight.
+CLOCK_DRIFT_READINGS = 2
 
 
 class WeishauptDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -59,6 +74,8 @@ class WeishauptDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         # time.monotonic() of the first failed poll in the current streak.
         self._failing_since: float | None = None
+        self._last_clock_check: float | None = None
+        self._clock_drift_readings = 0
         self.client = client
         self._scan_interval = timedelta(seconds=scan_interval)
         # None until detection has run; then the optional groups (HK, HK3, SOL, ...)
@@ -99,6 +116,7 @@ class WeishauptDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch data from the Weishaupt device."""
+        self.update_maintenance_issue()
         if self.client.suspended:
             # Paused by the user: keep the last values and send nothing.
             return dict(self.data or {})
@@ -141,6 +159,21 @@ class WeishauptDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 }
             )
 
+        if self._clock_check_due(now):
+            requested = {param["key"] for param in params}
+            for sensor_def in POLLED_SENSORS:
+                if sensor_def.key in DEVICE_TIME_KEYS and sensor_def.key not in requested:
+                    params.append(
+                        {
+                            "key": sensor_def.key,
+                            "mi": sensor_def.mi,
+                            "mx": sensor_def.mx,
+                            "ox": sensor_def.ox,
+                            "os": sensor_def.os,
+                            "vs": sensor_def.vs,
+                        }
+                    )
+
         if not params:
             return dict(self.data or {})
 
@@ -170,6 +203,11 @@ class WeishauptDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._last_read[param["key"]] = now
             data.pop(param["key"], None)
         data.update(results)
+        if FAULT_BLOCK_KEY in results:
+            self._update_fault_issue(results)
+        if self.config_entry is not None and all(key in results for key in DEVICE_TIME_KEYS):
+            self._last_clock_check = now
+            self._update_clock_issue(results)
         return data
 
     @property
@@ -202,6 +240,68 @@ class WeishauptDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     "minutes": str(round((now - self._failing_since) / 60)),
                 },
             )
+
+    def _issue(self, name: str, active: bool, **placeholders: str) -> None:
+        """Create or delete the repair issue `name` for this config entry."""
+        if self.config_entry is None:
+            return
+        issue_id = f"{name}_{self.config_entry.entry_id}"
+        if not active:
+            ir.async_delete_issue(self.hass, DOMAIN, issue_id)
+            return
+        ir.async_create_issue(
+            self.hass,
+            DOMAIN,
+            issue_id,
+            is_fixable=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key=name,
+            translation_placeholders={"title": self.config_entry.title, **placeholders},
+        )
+
+    def _update_fault_issue(self, results: dict[str, Any]) -> None:
+        """Show a repair issue while the Systemgerät reports an error."""
+        fault = active_fault(results)
+        if fault is None:
+            self._issue("device_fault", False)
+            return
+        message, number = fault
+        self._issue(
+            "device_fault", True, meldung=message, fehlernummer="?" if number is None else str(number)
+        )
+
+    def _clock_check_due(self, now: float) -> bool:
+        if self.config_entry is None:
+            return False  # nowhere to report a drift
+        return (
+            self._last_clock_check is None
+            or now - self._last_clock_check >= CLOCK_CHECK_INTERVAL
+        )
+
+    def _update_clock_issue(self, results: dict[str, Any]) -> None:
+        """Warn when the device clock is off, e.g. after the DST change or a power cut."""
+        timezone = ZoneInfo(self.hass.config.time_zone)
+        now = datetime.now(timezone)
+        drift = clock_drift_minutes(results, timezone, now)
+        if drift is None or drift <= CLOCK_DRIFT_LIMIT_MINUTES:
+            self._clock_drift_readings = 0
+            self._issue("clock_drift", False)
+            return
+        self._clock_drift_readings += 1
+        if self._clock_drift_readings >= CLOCK_DRIFT_READINGS:
+            self._issue("clock_drift", True, minutes=str(round(drift)))
+
+    def update_maintenance_issue(self) -> None:
+        """Show a repair issue once the configured maintenance is due."""
+        if self.config_entry is None:
+            return
+        due = next_maintenance(self.config_entry.options)
+        today = datetime.now(ZoneInfo(self.hass.config.time_zone)).date()
+        self._issue(
+            "maintenance_due",
+            due is not None and today >= due,
+            due=due.isoformat() if due else "",
+        )
 
     def _finish_detection(
         self,

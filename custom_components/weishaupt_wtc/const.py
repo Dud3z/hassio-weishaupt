@@ -10,6 +10,9 @@ CONF_SCAN_INTERVAL = "scan_interval"
 CONF_DETECTED_GROUPS = "detected_groups"
 # True while the "Abfragen pausieren" switch stops all requests to the device.
 CONF_SUSPENDED = "suspended"
+# Maintenance reminder (options): interval in months (0 = off), last date (ISO).
+CONF_MAINTENANCE_INTERVAL = "maintenance_interval_months"
+CONF_LAST_MAINTENANCE = "last_maintenance"
 
 DEFAULT_USERNAME = "admin"
 DEFAULT_PASSWORD = "Admin123"

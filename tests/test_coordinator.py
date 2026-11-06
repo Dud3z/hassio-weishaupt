@@ -307,11 +307,13 @@ class CoordinatorRepairIssueTests(unittest.IsolatedAsyncioTestCase):
 
     def make(self, client):
         return coordinator_module.WeishauptDataUpdateCoordinator(
-            hass=SimpleNamespace(),
+            hass=SimpleNamespace(config=SimpleNamespace(time_zone="Europe/Berlin")),
             client=client,
             scan_interval=30,
             active_groups=set(),
-            config_entry=SimpleNamespace(entry_id="entry-123", title="Weishaupt WTC (wem-sg)"),
+            config_entry=SimpleNamespace(
+                entry_id="entry-123", title="Weishaupt WTC (wem-sg)", options={}
+            ),
         )
 
     async def poll_at(self, coordinator, seconds: float) -> None:

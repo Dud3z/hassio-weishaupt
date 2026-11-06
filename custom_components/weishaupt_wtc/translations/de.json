@@ -339,11 +339,17 @@
                     "suspended": "Manuell pausiert",
                     "error": "Fehler"
                 }
+            },
+            "naechste_wartung": {
+                "name": "Nächste Wartung"
             }
         },
         "button": {
             "sg_warmwasser_push": {
                 "name": "Warmwasser-Push"
+            },
+            "wartung_erledigt": {
+                "name": "Wartung erledigt"
             }
         },
         "switch": {
@@ -366,7 +372,13 @@
                 "title": "Weishaupt WTC Optionen",
                 "description": "Register werden weiterhin höchstens so oft gelesen, wie ihre Weishaupt-Aktualisierungsklasse erlaubt (30 s, 60 s oder 10 min).",
                 "data": {
-                    "scan_interval": "Abfrageintervall (Sekunden)"
+                    "scan_interval": "Abfrageintervall (Sekunden)",
+                    "maintenance_interval_months": "Wartungsintervall (Monate)",
+                    "last_maintenance": "Letzte Wartung"
+                },
+                "data_description": {
+                    "maintenance_interval_months": "0 schaltet die Wartungserinnerung ab.",
+                    "last_maintenance": "Die nächste Wartung ist ein Intervall nach diesem Datum fällig. Der Knopf „Wartung erledigt“ setzt es auf heute."
                 }
             }
         }
@@ -375,6 +387,18 @@
         "device_unresponsive": {
             "title": "Weishaupt-Gerät antwortet nicht",
             "description": "{title} antwortet seit {minutes} Minuten nicht richtig. Die Integration pausiert ihre Anfragen und versucht es höchstens alle 30 Minuten erneut.\n\nBekannte Ursachen:\n- Die WEM-Portal-Verbindung (Cloud) ist aktiv. Sie lässt sich nicht gleichzeitig mit der lokalen Schnittstelle nutzen; in den Einstellungen des Systemgeräts abschalten.\n- Ein weiterer Client (App, Node-RED, eine zweite Integration) nutzt gleichzeitig die JSON-Schnittstelle.\n- Die JSON-Schnittstelle ist nach zu vielen Anfragen an unbekannte Register gesperrt. Dann hilft nur, die Heizung kurz stromlos zu machen.\n\nDieser Hinweis verschwindet, sobald das Gerät wieder antwortet."
+        },
+        "device_fault": {
+            "title": "Weishaupt-Heizung meldet eine Störung",
+            "description": "{title} meldet: {meldung} (Fehlernummer {fehlernummer}). Bitte Kesseldisplay und Bedienungsanleitung prüfen oder den Heizungsbauer kontaktieren. Dieser Hinweis verschwindet, sobald die Störung behoben ist."
+        },
+        "clock_drift": {
+            "title": "Uhrzeit der Weishaupt-Heizung weicht ab",
+            "description": "Die Uhr von {title} weicht um etwa {minutes} Minuten von der Home-Assistant-Zeit ab, zum Beispiel nach der Zeitumstellung oder einem Stromausfall. Zeitprogramme schalten dann zur falschen Zeit. Uhrzeit am Systemgerät einstellen; dieser Hinweis verschwindet, sobald sie stimmt."
+        },
+        "maintenance_due": {
+            "title": "Wartung der Heizung fällig",
+            "description": "Die Wartung von {title} war am {due} fällig. Nach der Wartung den Knopf „Wartung erledigt“ drücken; dann verschwindet dieser Hinweis."
         }
     }
 }

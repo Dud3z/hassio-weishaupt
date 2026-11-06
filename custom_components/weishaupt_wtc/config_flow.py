@@ -15,6 +15,7 @@ from homeassistant.config_entries import (
     OptionsFlowWithReload,
 )
 from homeassistant.core import callback
+from homeassistant.helpers import selector
 from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -30,6 +31,8 @@ from .const import (
     DEFAULT_USERNAME,
     DOMAIN,
     CONF_DETECTED_GROUPS,
+    CONF_LAST_MAINTENANCE,
+    CONF_MAINTENANCE_INTERVAL,
     CONF_SCAN_INTERVAL,
 )
 
@@ -241,13 +244,25 @@ class WeishauptOptionsFlow(OptionsFlowWithReload):
         """Show and store the scan interval."""
         if user_input is not None:
             return self.async_create_entry(data=user_input)
-        current = self.config_entry.options.get(
+        options = self.config_entry.options
+        current = options.get(
             CONF_SCAN_INTERVAL,
             self.config_entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
         )
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
-                {vol.Required(CONF_SCAN_INTERVAL, default=current): SCAN_INTERVAL_VALIDATOR}
+                {
+                    vol.Required(CONF_SCAN_INTERVAL, default=current): SCAN_INTERVAL_VALIDATOR,
+                    # 0 turns the maintenance reminder off.
+                    vol.Required(
+                        CONF_MAINTENANCE_INTERVAL,
+                        default=options.get(CONF_MAINTENANCE_INTERVAL, 0),
+                    ): vol.All(vol.Coerce(int), vol.Range(min=0, max=60)),
+                    vol.Optional(
+                        CONF_LAST_MAINTENANCE,
+                        description={"suggested_value": options.get(CONF_LAST_MAINTENANCE)},
+                    ): selector.DateSelector(),
+                }
             ),
         )

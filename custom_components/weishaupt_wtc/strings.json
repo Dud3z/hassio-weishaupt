@@ -339,11 +339,17 @@
                     "suspended": "Paused manually",
                     "error": "Error"
                 }
+            },
+            "naechste_wartung": {
+                "name": "Next maintenance"
             }
         },
         "button": {
             "sg_warmwasser_push": {
                 "name": "DHW Boost"
+            },
+            "wartung_erledigt": {
+                "name": "Maintenance done"
             }
         },
         "switch": {
@@ -366,7 +372,13 @@
                 "title": "Weishaupt WTC options",
                 "description": "Registers are still read no more often than their Weishaupt update class allows (30 s, 60 s or 10 min).",
                 "data": {
-                    "scan_interval": "Scan interval (seconds)"
+                    "scan_interval": "Scan interval (seconds)",
+                    "maintenance_interval_months": "Maintenance interval (months)",
+                    "last_maintenance": "Last maintenance"
+                },
+                "data_description": {
+                    "maintenance_interval_months": "0 turns the maintenance reminder off.",
+                    "last_maintenance": "The next maintenance is due one interval after this date. The 'Maintenance done' button sets it to today."
                 }
             }
         }
@@ -375,6 +387,18 @@
         "device_unresponsive": {
             "title": "Weishaupt device not answering",
             "description": "{title} has not answered properly for {minutes} minutes. The integration keeps pausing its requests and retries at most every 30 minutes.\n\nKnown causes:\n- The WEM Portal (cloud) connection is enabled. It cannot be used at the same time as the local interface; disable it in the Systemgerät settings.\n- Another client (app, Node-RED, a second integration) uses the JSON interface at the same time.\n- The JSON interface is locked after too many requests to unknown registers. Only switching the heating off and on again (power) helps.\n\nThis notice disappears as soon as the device answers again."
+        },
+        "device_fault": {
+            "title": "Weishaupt heating reports a fault",
+            "description": "{title} reports: {meldung} (error number {fehlernummer}). Check the boiler display and the operating manual, or contact your heating engineer. This notice disappears once the fault is cleared."
+        },
+        "clock_drift": {
+            "title": "Weishaupt heating clock is off",
+            "description": "The clock of {title} differs from Home Assistant's time by about {minutes} minutes, for example after the daylight saving time change or a power cut. Time programs then switch at the wrong time. Set the time on the Systemgerät; this notice disappears once it matches."
+        },
+        "maintenance_due": {
+            "title": "Heating maintenance due",
+            "description": "The maintenance of {title} was due on {due}. After the maintenance, press the 'Maintenance done' button; this notice then disappears."
         }
     }
 }

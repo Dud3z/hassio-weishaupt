@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from datetime import date, datetime
 from types import SimpleNamespace
+from zoneinfo import ZoneInfo
 import unittest
 from unittest.mock import AsyncMock, Mock, patch
 from pathlib import Path
@@ -19,6 +21,8 @@ sensor = ha_stubs.load("sensor")
 binary_sensor = ha_stubs.load("binary_sensor")
 switch = ha_stubs.load("switch")
 diagnostics = ha_stubs.load("diagnostics")
+health = ha_stubs.load("health")
+button = ha_stubs.load("button")
 try:
     config_flow = ha_stubs.load("config_flow")
 except ModuleNotFoundError:  # voluptuous is not installed
@@ -258,7 +262,7 @@ class OptionsFlowTests(unittest.IsolatedAsyncioTestCase):
     async def test_form_defaults_to_the_current_interval(self) -> None:
         for options, expected in (({}, 30), ({"scan_interval": 90}, 90)):
             result = await self.make(options).async_step_init()
-            (key,) = result["data_schema"].schema
+            key = next(k for k in result["data_schema"].schema if k == "scan_interval")
             self.assertEqual(key.default(), expected)
 
     async def test_out_of_range_interval_is_rejected(self) -> None:
@@ -334,6 +338,169 @@ class PauseSwitchTests(unittest.IsolatedAsyncioTestCase):
             self.entry,
         )
         self.assertEqual(sensor_entity.native_value, "suspended")
+
+
+BERLIN = ZoneInfo("Europe/Berlin")
+
+
+def device_time(hour: int, minute: int, day: int = 6, month: int = 11, year: int = 26) -> dict:
+    values = {
+        "sg_uhrzeit_stunden": hour,
+        "sg_uhrzeit_minuten": minute,
+        "sg_datum_tag": day,
+        "sg_datum_monat": month,
+        "sg_datum_jahr": year,
+    }
+    return {key: {"value_int": value} for key, value in values.items()}
+
+
+class HealthTests(unittest.TestCase):
+    def test_add_months_clamps_to_month_end(self) -> None:
+        self.assertEqual(health.add_months(date(2026, 1, 31), 1), date(2026, 2, 28))
+        self.assertEqual(health.add_months(date(2026, 11, 15), 12), date(2027, 11, 15))
+        self.assertEqual(health.add_months(date(2026, 11, 15), 3), date(2027, 2, 15))
+
+    def test_next_maintenance(self) -> None:
+        self.assertIsNone(health.next_maintenance({}))
+        self.assertIsNone(health.next_maintenance({"maintenance_interval_months": 0, "last_maintenance": "2026-01-10"}))
+        self.assertIsNone(health.next_maintenance({"maintenance_interval_months": 12}))
+        self.assertEqual(
+            health.next_maintenance({"maintenance_interval_months": 12, "last_maintenance": "2026-01-10"}),
+            date(2027, 1, 10),
+        )
+
+    def test_clock_drift(self) -> None:
+        now = datetime(2026, 11, 6, 14, 30, tzinfo=BERLIN)
+        self.assertAlmostEqual(health.clock_drift_minutes(device_time(14, 30), BERLIN, now), 0)
+        self.assertAlmostEqual(health.clock_drift_minutes(device_time(15, 30), BERLIN, now), 60)
+        self.assertIsNone(health.clock_drift_minutes({}, BERLIN, now))
+
+    def test_active_fault(self) -> None:
+        self.assertEqual(
+            health.active_fault({"sg_canopen_fehlerblock": fault_block(0x0001, 31)}), ("Fehler", 31)
+        )
+        self.assertIsNone(health.active_fault({"sg_canopen_fehlerblock": fault_block(0x0002, 31)}))
+        self.assertIsNone(health.active_fault({}))
+
+
+class ScriptedReads:
+    """Answers each poll with the next scripted register values."""
+
+    suspended = False
+    pause_remaining = 0
+
+    def __init__(self, replies: list[dict]) -> None:
+        self.replies = list(replies)
+        self.calls: list[set[str]] = []
+
+    async def read_parameters_with_status(self, params):
+        keys = {param["key"] for param in params}
+        self.calls.append(keys)
+        reply = {key: value for key, value in self.replies.pop(0).items() if key in keys}
+        return reply, set(reply)
+
+
+class RepairIssueTests(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self) -> None:
+        ha_stubs.issues.clear()
+        self.now = 1000.0
+        patcher = patch.object(coordinator_module.time, "monotonic", lambda: self.now)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.wall = datetime(2026, 11, 6, 14, 30, tzinfo=BERLIN)
+        dt_patcher = patch.object(
+            coordinator_module, "datetime", SimpleNamespace(now=lambda tz=None: self.wall)
+        )
+        dt_patcher.start()
+        self.addCleanup(dt_patcher.stop)
+
+    def make(self, client, options=None):
+        coordinator = coordinator_module.WeishauptDataUpdateCoordinator(
+            hass=SimpleNamespace(config=SimpleNamespace(time_zone="Europe/Berlin")),
+            client=client,
+            scan_interval=30,
+            active_groups=set(),
+            config_entry=SimpleNamespace(
+                entry_id="e1", title="Weishaupt WTC (wem-sg)", options=options or {}
+            ),
+        )
+        coordinator._contexts = [frozenset({"wtc_kesseltemperatur", "sg_canopen_fehlerblock"})]
+        return coordinator
+
+    async def poll_at(self, coordinator, seconds: float) -> None:
+        self.now = 1000.0 + seconds
+        coordinator.data = await coordinator._async_update_data()
+
+    async def test_fault_issue_follows_the_error_block(self) -> None:
+        client = ScriptedReads([
+            {"sg_canopen_fehlerblock": fault_block(0x0001, 31)},
+            {"sg_canopen_fehlerblock": fault_block(0x0000, 0)},
+        ])
+        coordinator = self.make(client)
+
+        await self.poll_at(coordinator, 0)
+        issue = ha_stubs.issues["device_fault_e1"]
+        self.assertEqual(issue["translation_placeholders"]["fehlernummer"], "31")
+        self.assertEqual(issue["translation_placeholders"]["meldung"], "Fehler")
+
+        await self.poll_at(coordinator, 60)
+        self.assertNotIn("device_fault_e1", ha_stubs.issues)
+
+    async def test_clock_is_checked_every_10_minutes_with_its_entity_disabled(self) -> None:
+        client = ScriptedReads([device_time(14, 30)] * 3)
+        coordinator = self.make(client)
+
+        await self.poll_at(coordinator, 0)
+        await self.poll_at(coordinator, 60)
+        await self.poll_at(coordinator, 600)
+
+        has_time = [set(health.DEVICE_TIME_KEYS) <= keys for keys in client.calls]
+        self.assertEqual(has_time, [True, False, True])
+
+    async def test_clock_drift_warns_after_two_readings_and_clears(self) -> None:
+        client = ScriptedReads([device_time(15, 30), device_time(15, 30), device_time(14, 31)])
+        coordinator = self.make(client)
+
+        await self.poll_at(coordinator, 0)
+        self.assertNotIn("clock_drift_e1", ha_stubs.issues)  # one reading may be midnight
+        await self.poll_at(coordinator, 600)
+        self.assertEqual(ha_stubs.issues["clock_drift_e1"]["translation_placeholders"]["minutes"], "60")
+        await self.poll_at(coordinator, 1200)
+        self.assertNotIn("clock_drift_e1", ha_stubs.issues)
+
+    async def test_maintenance_issue_when_due(self) -> None:
+        for last, due in (("2025-10-01", True), ("2026-10-01", False)):
+            ha_stubs.issues.clear()
+            coordinator = self.make(
+                ScriptedReads([{}]),
+                {"maintenance_interval_months": 12, "last_maintenance": last},
+            )
+            await self.poll_at(coordinator, 0)
+            self.assertEqual("maintenance_due_e1" in ha_stubs.issues, due, last)
+
+
+class MaintenanceEntityTests(unittest.IsolatedAsyncioTestCase):
+    async def test_button_records_today_and_moves_the_due_date(self) -> None:
+        entry = ha_stubs.ConfigEntry(
+            ENTRY_DATA, {"maintenance_interval_months": 12, "last_maintenance": "2025-01-10"}
+        )
+        coordinator = SimpleNamespace(update_maintenance_issue=Mock(), async_update_listeners=Mock())
+        press = button.WeishauptMaintenanceDoneButton(coordinator, entry)
+        press.hass = SimpleNamespace(
+            config=SimpleNamespace(time_zone="Europe/Berlin"),
+            config_entries=SimpleNamespace(
+                async_update_entry=lambda e, options: setattr(e, "options", options)
+            ),
+        )
+        today = datetime.now(BERLIN).date()
+
+        await press.async_press()
+
+        self.assertEqual(entry.options["last_maintenance"], today.isoformat())
+        self.assertEqual(entry.options["maintenance_interval_months"], 12)
+        coordinator.update_maintenance_issue.assert_called_once()
+        due = sensor.WeishauptNextMaintenanceSensor(coordinator, entry).native_value
+        self.assertEqual(due, health.add_months(today, 12))
 
 
 class FaultParsingTests(unittest.TestCase):

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 import logging
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -16,8 +16,9 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import CONF_MAINTENANCE_INTERVAL, DOMAIN
 from .coordinator import WeishauptDataUpdateCoordinator
+from .health import next_maintenance
 from .parsing import (
     build_device_time,
     decode_fault_status,
@@ -116,6 +117,8 @@ async def async_setup_entry(
     )
 
     entities: list[SensorEntity] = [WeishauptConnectionSensor(coordinator, entry)]
+    if entry.options.get(CONF_MAINTENANCE_INTERVAL):
+        entities.append(WeishauptNextMaintenanceSensor(coordinator, entry))
     for sensor_def in ALL_SENSORS:
         # Skip creating a read-only sensor when a writable Select, Button or Switch exists
         if sensor_def.key in {"sg_betriebsart_hk1_vorgabe", "sg_warmwasser_push", "sg_betriebsart_warmwasser"}:
@@ -408,3 +411,36 @@ class WeishauptConnectionSensor(
             ),
             "last_error": None if self.coordinator.last_update_success or error is None else str(error),
         }
+
+
+class WeishauptNextMaintenanceSensor(
+    CoordinatorEntity[WeishauptDataUpdateCoordinator], SensorEntity
+):
+    """Date the next maintenance is due, from the interval set under Configure."""
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "naechste_wartung"
+    _attr_device_class = SensorDeviceClass.DATE
+
+    def __init__(
+        self, coordinator: WeishauptDataUpdateCoordinator, entry: ConfigEntry
+    ) -> None:
+        """Initialize the maintenance date sensor."""
+        super().__init__(coordinator, context=frozenset())  # reads no register
+        self._entry = entry
+        self._attr_unique_id = f"{entry.entry_id}_naechste_wartung"
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Attach to the Systemgerät."""
+        return DeviceInfo(identifiers={_system_device_identifier(self._entry.entry_id)})
+
+    @property
+    def available(self) -> bool:
+        """Independent of the device: the date comes from the options."""
+        return True
+
+    @property
+    def native_value(self) -> date | None:
+        """Return the due date; unknown until a last maintenance date is set."""
+        return next_maintenance(self._entry.options)
