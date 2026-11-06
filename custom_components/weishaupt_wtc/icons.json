@@ -1,0 +1,21 @@
+{
+    "entity": {
+        "sensor": {
+            "verbindung": {
+                "default": "mdi:lan-connect",
+                "state": {
+                    "paused": "mdi:lan-pending",
+                    "error": "mdi:lan-disconnect"
+                }
+            }
+        },
+        "switch": {
+            "sg_betriebsart_warmwasser": {
+                "default": "mdi:water-boiler",
+                "state": {
+                    "off": "mdi:water-boiler-off"
+                }
+            }
+        }
+    }
+}

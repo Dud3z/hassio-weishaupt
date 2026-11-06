@@ -7,6 +7,7 @@
 - Improvement: Read each register no more often than its update class in Weishaupt's register table (30 s, 60 s or 10 min), and do not read registers behind disabled entities. With the default entities and no expansion modules this lowers the requests to the device from about 1200 to about 670 per hour. A register written by a select or switch is read back right away.
 - Feature: A repair issue appears when the device has not answered for 30 minutes, listing the known causes (WEM Portal enabled, a second client, lock-up until power cycle); it clears itself on recovery.
 - Feature: *Configure* changes the scan interval after setup.
+- Improvement: Icons follow the state: burner phase (flame off/on, fan while purging), Warmwasser pump, fault status, the Warmwasser switch and the connection sensor.
 - Improvement: The seven cascade sensors (Folgewechsel, Wechselzeit, Kaskade …) start disabled on new installations, so systems without an EM-KA cascade module neither show nor poll them. Existing installations keep them; disable them in the entity settings if you have no cascade.
 - Feature: Re-authenticate when the device rejects the stored credentials (HTTP 401) instead of failing every poll.
 - Feature: `Störung` binary sensor (problem) from the existing error block, with message type and error number as attributes.

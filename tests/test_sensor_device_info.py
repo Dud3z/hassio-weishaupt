@@ -187,6 +187,44 @@ class SensorDeviceInfoTests(unittest.TestCase):
         self.assertEqual(entity.device_info["name"], "Weishaupt Heizkreis 2")
 
 
+class StateIconTests(unittest.TestCase):
+    """Icons follow the current value."""
+
+    def icon(self, key: str, data: dict) -> str | None:
+        sensor_def = next(d for d in sensors.ALL_SENSORS if d.key == key)
+        entity = sensor.WeishauptSensorEntity(
+            SimpleNamespace(data=data), sensor_def, SimpleNamespace(entry_id="entry-123")
+        )
+        return entity.icon
+
+    def test_burner_phase_icon(self) -> None:
+        key = "wtc_betriebsphase_brenner"
+        self.assertEqual(self.icon(key, {key: {"value_int": 0}}), "mdi:fire-off")
+        self.assertEqual(self.icon(key, {key: {"value_int": 3}}), "mdi:fire")
+        self.assertEqual(self.icon(key, {}), "mdi:fire")  # not read yet: the static icon
+
+    def test_fault_status_icon_reads_its_segment_of_the_error_block(self) -> None:
+        block = {"sg_canopen_fehlerblock": {"value_hex": "0000000100000000"}}
+        self.assertEqual(self.icon("sg_fehler_warnung_status", block), "mdi:alert-circle")
+        block = {"sg_canopen_fehlerblock": {"value_hex": "0000000000000000"}}
+        self.assertEqual(
+            self.icon("sg_fehler_warnung_status", block), "mdi:check-circle-outline"
+        )
+
+    def test_icons_json_follows_hassfest_rules(self) -> None:
+        """State keys are slugs and no state repeats the default icon."""
+        import json
+        import re
+
+        icons = json.loads((ha_stubs.PACKAGE_ROOT / "icons.json").read_text())
+        for platform in icons["entity"].values():
+            for key, section in platform.items():
+                self.assertRegex(key, r"^[a-z0-9_]+$")
+                for state, icon in section.get("state", {}).items():
+                    self.assertTrue(re.fullmatch(r"[a-z0-9_-]+", state), state)
+                    self.assertNotEqual(icon, section["default"], f"{key}.{state}")
+
+
 class EnabledDefaultTests(unittest.TestCase):
     """Which sensors a new installation starts with."""
 

@@ -39,6 +39,14 @@ _LOGGER = logging.getLogger(__name__)
 # Values come from the coordinator; nothing to limit.
 PARALLEL_UPDATES = 0
 
+FAULT_STATUS_ICONS = {
+    "Keine Meldung": "mdi:check-circle-outline",
+    "Info": "mdi:information-outline",
+    "Warnung": "mdi:alert-outline",
+    "Fehler": "mdi:alert-circle",
+    "Fehler aktiv": "mdi:alert-circle",
+}
+
 DEVICE_GROUP_NAMES = {
     WeishauptDeviceGroup.SG: "Systemgerät",
     WeishauptDeviceGroup.WTC: "WTC Kessel",
@@ -151,7 +159,6 @@ class WeishauptSensorEntity(
         self._attr_native_unit_of_measurement = sensor_def.unit
         self._attr_device_class = sensor_def.device_class
         self._attr_state_class = sensor_def.state_class
-        self._attr_icon = sensor_def.icon
         if sensor_def.precision is not None:
             self._attr_suggested_display_precision = sensor_def.precision
 
@@ -202,6 +209,34 @@ class WeishauptSensorEntity(
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
         self.async_write_ha_state()
+
+    def _raw_int(self) -> int | None:
+        """Return the register's raw integer, or None while it has not been read."""
+        sensor_def = self._sensor_def
+        data = (self.coordinator.data or {}).get(sensor_def.source_key or sensor_def.key)
+        if data is None:
+            return None
+        if sensor_def.source_key is None:
+            return data["value_int"]
+        extracted = extract_value_segment(
+            data.get("value_hex", ""),
+            sensor_def.byte_offset,
+            sensor_def.byte_length or sensor_def.vs,
+        )
+        return None if extracted is None else extracted[1]
+
+    @property
+    def icon(self) -> str | None:
+        """Return an icon matching the current value where one is defined."""
+        sensor_def = self._sensor_def
+        if sensor_def.state_icons is None and sensor_def.key != "sg_fehler_warnung_status":
+            return sensor_def.icon
+        raw_value = self._raw_int()
+        if raw_value is None:
+            return sensor_def.icon
+        if sensor_def.key == "sg_fehler_warnung_status":
+            return FAULT_STATUS_ICONS.get(decode_fault_status(raw_value), sensor_def.icon)
+        return sensor_def.state_icons.get(raw_value, sensor_def.icon)
 
     @property
     def native_value(self) -> Any:
@@ -330,7 +365,6 @@ class WeishauptConnectionSensor(
     _attr_device_class = SensorDeviceClass.ENUM
     _attr_options = ["ok", "paused", "error"]
     _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_icon = "mdi:lan-connect"
 
     def __init__(
         self, coordinator: WeishauptDataUpdateCoordinator, entry: ConfigEntry

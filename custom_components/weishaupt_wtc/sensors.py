@@ -75,6 +75,7 @@ class WeishauptSensorDefinition:
     byte_length: int | None = None  # Number of bytes to read from the source value_hex
     entity_registry_enabled_default: bool | None = None  # Override default enabled state; None = use category default
     poll_interval: int = POLL_MEDIUM  # Minimum seconds between reads: POLL_FAST, POLL_MEDIUM or POLL_SLOW
+    state_icons: dict[int, str] | None = None  # Icon per raw value; falls back to icon
 
 
 # ============================================================================
@@ -198,6 +199,17 @@ PUMPE_MAP = {
     0: "Aus",
     1: "Ein",
 }
+
+# State icons keyed by raw value. icons.json cannot express these: its state
+# keys must be slugs, and these sensors report display text.
+BRENNER_ICONS = {
+    0: "mdi:fire-off",
+    1: "mdi:fan",
+    2: "mdi:fire",
+    3: "mdi:fire",
+    4: "mdi:fan",
+}
+PUMPE_ICONS = {0: "mdi:pump-off", 1: "mdi:pump"}
 
 
 # ============================================================================
@@ -751,6 +763,7 @@ SG_SENSORS: list[WeishauptSensorDefinition] = [
         poll_interval=POLL_FAST,
         icon="mdi:pump",
         value_map=PUMPE_MAP,
+        state_icons=PUMPE_ICONS,
     ),
     # --- Kaskade (140-146) ---
     WeishauptSensorDefinition(
@@ -985,6 +998,7 @@ WTC_SENSORS: list[WeishauptSensorDefinition] = [
         poll_interval=POLL_FAST,
         icon="mdi:fire",
         value_map=BETRIEBSPHASE_BRENNER_MAP,
+        state_icons=BRENNER_ICONS,
     ),
     WeishauptSensorDefinition(
         # Not part of the Modbus table; found via CanApiJson by comparing raw
