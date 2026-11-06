@@ -54,7 +54,7 @@ http://admin:Admin123@wem-sg/ajax/CanApiJson.json
 3. Enter the IP address (or hostname) of your Systemgerät
 4. Optionally adjust username, password, and scan interval
 
-The scan interval can be changed later under **Configure**. If the device rejects the stored password, Home Assistant asks for new credentials (**Re-authenticate**) and checks them against the device before storing them.
+Home Assistant also offers the setup by itself when a Systemgerät with the hostname `wem-sg` joins the network. If the address of the Systemgerät changes, enter the new one under **Reconfigure**; entities, history and automations are kept. The scan interval can be changed later under **Configure**. If the device rejects the stored password, Home Assistant asks for new credentials (**Re-authenticate**) and checks them against the device before storing them.
 
 **Download diagnostics** on the integration page returns the raw register values, the detected modules and the connection state, with host, username and password removed. Attach it to bug reports.
 
@@ -113,7 +113,7 @@ if the assumption is wrong. See [#11](https://github.com/kraiz/hassio-weishaupt/
 - Speichertemperatur unten
 - Solarertrag (Gesamtzähler / heute / Vortag)
 
-Heizkreis 2, Heizkreis 3 and Solar are optional expansion modules. On the first setup the integration sends one probe per optional group and stores the result in the config entry; restarts and reloads reuse it and send no probes. To re-detect after adding or removing a module, use **Reconfigure → Re-detect optional modules**, only while the device responds normally, and run it once, not repeatedly: each run probes absent modules, which counts against the device's request limit ([#15](https://github.com/kraiz/hassio-weishaupt/issues/15)). A module removed after detection keeps being polled until you re-detect.
+Heizkreis 2, Heizkreis 3 and Solar are optional expansion modules. On the first setup the integration sends one probe per optional group and stores the result in the config entry; restarts and reloads reuse it and send no probes. To re-detect after adding or removing a module, use **Reconfigure** and tick **Re-detect optional modules**, only while the device responds normally, and run it once, not repeatedly: each run probes absent modules, which counts against the device's request limit ([#15](https://github.com/kraiz/hassio-weishaupt/issues/15)). A module removed after detection keeps being polled until you re-detect.
 
 ## Protocol
 

@@ -1,5 +1,6 @@
 {
     "config": {
+        "flow_title": "Weishaupt WTC ({host})",
         "step": {
             "user": {
                 "title": "Configurazione Weishaupt WTC",
@@ -12,12 +13,27 @@
                 }
             },
             "reconfigure": {
-                "title": "Riconosci di nuovo i moduli opzionali",
-                "description": "Verifica una volta CR2, CR3 e Solare e salva il risultato. Eseguire solo se il dispositivo risponde normalmente: le richieste a moduli assenti consumano i posti limitati del dispositivo, che si sblocca solo dopo lo spegnimento."
+                "title": "Riconfigura",
+                "description": "Cambia l'indirizzo del Systemgerät o rileva di nuovo i moduli opzionali. Un nuovo indirizzo viene verificato con le credenziali salvate prima di essere salvato.",
+                "data": {
+                    "host": "Host / indirizzo IP",
+                    "redetect_modules": "Rileva di nuovo i moduli opzionali"
+                },
+                "data_description": {
+                    "redetect_modules": "Interroga una volta HC2, HC3 e Solar e salva il risultato. Eseguire solo quando il dispositivo risponde normalmente: le richieste a moduli assenti consumano i suoi slot di richiesta limitati e un dispositivo bloccato si ripristina solo dopo lo spegnimento."
+                }
             },
             "reauth_confirm": {
                 "title": "Inserire di nuovo le credenziali",
                 "description": "Il dispositivo Weishaupt su {host} ha rifiutato il nome utente o la password salvati.",
+                "data": {
+                    "username": "Nome utente",
+                    "password": "Password"
+                }
+            },
+            "discovery_confirm": {
+                "title": "Systemgerät Weishaupt trovato",
+                "description": "È stato trovato un Systemgerät Weishaupt su {host}. Inserire le credenziali per aggiungerlo.",
                 "data": {
                     "username": "Nome utente",
                     "password": "Password"
@@ -31,7 +47,8 @@
         },
         "abort": {
             "already_configured": "Questo dispositivo è già configurato.",
-            "reauth_successful": "Credenziali aggiornate."
+            "reauth_successful": "Credenziali aggiornate.",
+            "reconfigure_successful": "Impostazioni aggiornate."
         }
     },
     "entity": {

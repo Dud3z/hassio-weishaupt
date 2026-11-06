@@ -152,11 +152,29 @@ class _FlowBase:
         return {"type": "abort", **kwargs}
 
 
+class AbortFlow(Exception):
+    """data_entry_flow.AbortFlow stand-in."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+
 class ConfigFlow(_FlowBase):
-    """Config flow stand-in; tests set hass and the entry being reauthenticated."""
+    """Config flow stand-in.
+
+    Tests set hass, the entry being reauthenticated or reconfigured, and the
+    entries that already exist (existing_entries).
+    """
 
     hass = None
     reauth_entry: ConfigEntry | None = None
+    reconfigure_entry: ConfigEntry | None = None
+
+    def __init__(self) -> None:
+        self.context: dict = {}
+        self.unique_id = None
+        self.existing_entries: list[ConfigEntry] = []
 
     def __init_subclass__(cls, domain=None, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -166,14 +184,34 @@ class ConfigFlow(_FlowBase):
         self.unique_id = unique_id
 
     def _abort_if_unique_id_configured(self) -> None:
-        """Nothing is configured in tests."""
+        current = self.reconfigure_entry
+        for entry in self.existing_entries:
+            if entry is not current and getattr(entry, "unique_id", None) == self.unique_id:
+                raise AbortFlow("already_configured")
+
+    def _async_abort_entries_match(self, match: dict) -> None:
+        for entry in self.existing_entries:
+            if all(entry.data.get(key) == value for key, value in match.items()):
+                raise AbortFlow("already_configured")
 
     def _get_reauth_entry(self) -> ConfigEntry:
         return self.reauth_entry
 
-    def async_update_reload_and_abort(self, entry, *, data_updates=None, **kwargs):
+    def _get_reconfigure_entry(self) -> ConfigEntry:
+        return self.reconfigure_entry
+
+    def async_update_reload_and_abort(
+        self, entry, *, unique_id=None, title=None, data=None, data_updates=None, **kwargs
+    ):
+        if data is not None:
+            entry.data = dict(data)
         entry.data.update(data_updates or {})
-        return {"type": "abort", "reason": "reauth_successful"}
+        if unique_id is not None:
+            entry.unique_id = unique_id
+        if title is not None:
+            entry.title = title
+        reason = "reauth_successful" if self.reauth_entry is entry else "reconfigure_successful"
+        return {"type": "abort", "reason": reason}
 
 
 class OptionsFlow(_FlowBase):
@@ -271,6 +309,9 @@ def _install() -> None:
         async_get=lambda hass: fake_device_registry,
     )
     _module("homeassistant.helpers.entity_platform", AddEntitiesCallback=object)
+    _module("homeassistant.helpers.service_info", package=True)
+    _module("homeassistant.helpers.service_info.dhcp", DhcpServiceInfo=SimpleNamespace)
+    _module("homeassistant.data_entry_flow", AbortFlow=AbortFlow)
     _module(
         "homeassistant.helpers.entity",
         EntityCategory=SimpleNamespace(CONFIG="config", DIAGNOSTIC="diagnostic"),

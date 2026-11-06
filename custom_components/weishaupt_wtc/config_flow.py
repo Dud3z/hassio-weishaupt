@@ -15,6 +15,7 @@ from homeassistant.config_entries import (
     OptionsFlowWithReload,
 )
 from homeassistant.core import callback
+from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
@@ -33,6 +34,8 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+CONF_REDETECT_MODULES = "redetect_modules"
 
 SCAN_INTERVAL_VALIDATOR = vol.All(vol.Coerce(int), vol.Range(min=10, max=300))
 
@@ -108,13 +111,83 @@ class WeishauptWemConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Re-detect the optional modules on explicit request."""
+        """Change the device address and/or re-detect the optional modules."""
         entry = self._get_reconfigure_entry()
+        errors: dict[str, str] = {}
         if user_input is not None:
-            # Dropping the stored result makes the next setup probe again.
-            data = {k: v for k, v in entry.data.items() if k != CONF_DETECTED_GROUPS}
-            return self.async_update_reload_and_abort(entry, data=data)
-        return self.async_show_form(step_id="reconfigure")
+            host = user_input[CONF_HOST].strip()
+            data = dict(entry.data)
+            if host != entry.data[CONF_HOST]:
+                # A new address keeps entities, history and automations; check it first.
+                await self.async_set_unique_id(host)
+                self._abort_if_unique_id_configured()
+                if error := await _validate_credentials(
+                    self, host, entry.data[CONF_USERNAME], entry.data[CONF_PASSWORD]
+                ):
+                    errors["base"] = error
+                data[CONF_HOST] = host
+            if user_input[CONF_REDETECT_MODULES]:
+                # Dropping the stored result makes the next setup probe again.
+                data.pop(CONF_DETECTED_GROUPS, None)
+            if not errors:
+                return self.async_update_reload_and_abort(
+                    entry,
+                    unique_id=host,
+                    title=f"Weishaupt WTC ({host})",
+                    data=data,
+                )
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_HOST, default=entry.data[CONF_HOST]): str,
+                    vol.Required(CONF_REDETECT_MODULES, default=False): bool,
+                }
+            ),
+            errors=errors,
+        )
+
+    async def async_step_dhcp(
+        self, discovery_info: DhcpServiceInfo
+    ) -> ConfigFlowResult:
+        """Offer setup when a Systemgerät (hostname wem-sg*) joins the network."""
+        host = discovery_info.ip
+        # Entries store whatever the user typed: the IP address or the hostname.
+        for known in (host, discovery_info.hostname):
+            self._async_abort_entries_match({CONF_HOST: known})
+        await self.async_set_unique_id(host)
+        self._abort_if_unique_id_configured()
+        self._discovered_host = host
+        self.context["title_placeholders"] = {"host": host}
+        return await self.async_step_discovery_confirm()
+
+    async def async_step_discovery_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Ask for the credentials of a discovered Systemgerät."""
+        host = self._discovered_host
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            if error := await _validate_credentials(
+                self, host, user_input[CONF_USERNAME], user_input[CONF_PASSWORD]
+            ):
+                errors["base"] = error
+            else:
+                return self.async_create_entry(
+                    title=f"Weishaupt WTC ({host})",
+                    data={CONF_HOST: host, CONF_SCAN_INTERVAL: DEFAULT_SCAN_INTERVAL, **user_input},
+                )
+        return self.async_show_form(
+            step_id="discovery_confirm",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_USERNAME, default=DEFAULT_USERNAME): str,
+                    vol.Required(CONF_PASSWORD, default=DEFAULT_PASSWORD): str,
+                }
+            ),
+            description_placeholders={"host": host},
+            errors=errors,
+        )
 
     async def async_step_reauth(
         self, entry_data: Mapping[str, Any]

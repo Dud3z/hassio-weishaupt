@@ -160,6 +160,94 @@ class ReauthFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.flow.reauth_entry.data["host"], "192.168.1.50")
 
 
+def make_flow(**entries):
+    flow = config_flow.WeishauptWemConfigFlow()
+    flow.hass = SimpleNamespace()
+    for name, entry in entries.items():
+        setattr(flow, name, entry)
+    return flow
+
+
+@unittest.skipIf(config_flow is None, "voluptuous is not installed")
+class ReconfigureFlowTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self) -> None:
+        self.entry = ha_stubs.ConfigEntry({**ENTRY_DATA, "detected_groups": ["hk"]})
+        self.entry.unique_id = ENTRY_DATA["host"]
+        self.flow = make_flow(reconfigure_entry=self.entry)
+        self.flow.existing_entries = [self.entry]
+
+    async def test_new_address_is_checked_and_stored_with_its_modules(self) -> None:
+        with patch.object(api.WeishauptApiClient, "test_connection", AsyncMock(return_value=True)):
+            result = await self.flow.async_step_reconfigure(
+                {"host": "192.168.1.77", "redetect_modules": False}
+            )
+
+        self.assertEqual(result["reason"], "reconfigure_successful")
+        self.assertEqual(self.entry.data["host"], "192.168.1.77")
+        self.assertEqual(self.entry.unique_id, "192.168.1.77")
+        self.assertEqual(self.entry.data["detected_groups"], ["hk"])  # no probes
+
+    async def test_unreachable_new_address_is_not_stored(self) -> None:
+        with patch.object(
+            api.WeishauptApiClient,
+            "test_connection",
+            AsyncMock(side_effect=api.WeishauptConnectionError("timeout")),
+        ):
+            result = await self.flow.async_step_reconfigure(
+                {"host": "192.168.1.77", "redetect_modules": False}
+            )
+
+        self.assertEqual(result["errors"], {"base": "cannot_connect"})
+        self.assertEqual(self.entry.data["host"], "192.168.1.50")
+
+    async def test_redetect_without_address_change_sends_nothing_now(self) -> None:
+        test_connection = AsyncMock()
+        with patch.object(api.WeishauptApiClient, "test_connection", test_connection):
+            await self.flow.async_step_reconfigure(
+                {"host": "192.168.1.50", "redetect_modules": True}
+            )
+
+        test_connection.assert_not_awaited()
+        self.assertNotIn("detected_groups", self.entry.data)  # probed on reload
+
+    async def test_address_of_another_entry_is_refused(self) -> None:
+        other = ha_stubs.ConfigEntry({**ENTRY_DATA, "host": "192.168.1.77"})
+        other.unique_id = "192.168.1.77"
+        self.flow.existing_entries.append(other)
+
+        with self.assertRaises(ha_stubs.AbortFlow):
+            await self.flow.async_step_reconfigure(
+                {"host": "192.168.1.77", "redetect_modules": False}
+            )
+
+
+@unittest.skipIf(config_flow is None, "voluptuous is not installed")
+class DhcpDiscoveryTests(unittest.IsolatedAsyncioTestCase):
+    def discovery(self):
+        return SimpleNamespace(ip="192.168.1.60", hostname="wem-sg", macaddress="aabbccddeeff")
+
+    async def test_new_device_asks_for_credentials_then_creates_entry(self) -> None:
+        flow = make_flow()
+
+        form = await flow.async_step_dhcp(self.discovery())
+        self.assertEqual(form["step_id"], "discovery_confirm")
+        with patch.object(api.WeishauptApiClient, "test_connection", AsyncMock(return_value=True)):
+            result = await flow.async_step_discovery_confirm(
+                {"username": "admin", "password": "Admin123"}
+            )
+
+        self.assertEqual(result["type"], "create_entry")
+        self.assertEqual(result["data"]["host"], "192.168.1.60")
+        self.assertEqual(result["data"]["scan_interval"], 30)
+
+    async def test_device_configured_by_hostname_or_ip_is_not_offered(self) -> None:
+        for host in ("wem-sg", "192.168.1.60"):
+            flow = make_flow()
+            flow.existing_entries = [ha_stubs.ConfigEntry({**ENTRY_DATA, "host": host})]
+            with self.assertRaises(ha_stubs.AbortFlow):
+                await flow.async_step_dhcp(self.discovery())
+
+
 @unittest.skipIf(config_flow is None, "voluptuous is not installed")
 class OptionsFlowTests(unittest.IsolatedAsyncioTestCase):
     def make(self, options: dict) -> config_flow.WeishauptOptionsFlow:

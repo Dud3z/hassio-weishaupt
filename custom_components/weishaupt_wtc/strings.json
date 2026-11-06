@@ -1,5 +1,6 @@
 {
     "config": {
+        "flow_title": "Weishaupt WTC ({host})",
         "step": {
             "user": {
                 "title": "Weishaupt WTC Setup",
@@ -12,12 +13,27 @@
                 }
             },
             "reconfigure": {
-                "title": "Re-detect optional modules",
-                "description": "Probes HC2, HC3 and Solar once and stores the result. Only run this while the device responds normally: probes to absent modules use up its limited request slots, and a locked device only recovers after power-off."
+                "title": "Reconfigure",
+                "description": "Change the address of the Systemgerät or re-detect the optional modules. A new address is checked with the stored credentials before it is saved.",
+                "data": {
+                    "host": "Host / IP address",
+                    "redetect_modules": "Re-detect optional modules"
+                },
+                "data_description": {
+                    "redetect_modules": "Probes HC2, HC3 and Solar once and stores the result. Only run this while the device responds normally: probes to absent modules use up its limited request slots, and a locked device only recovers after power-off."
+                }
             },
             "reauth_confirm": {
                 "title": "Re-enter credentials",
                 "description": "The Weishaupt device at {host} rejected the stored username or password.",
+                "data": {
+                    "username": "Username",
+                    "password": "Password"
+                }
+            },
+            "discovery_confirm": {
+                "title": "Weishaupt Systemgerät found",
+                "description": "A Weishaupt Systemgerät was found at {host}. Enter its credentials to add it.",
                 "data": {
                     "username": "Username",
                     "password": "Password"
@@ -31,7 +47,8 @@
         },
         "abort": {
             "already_configured": "This device is already configured.",
-            "reauth_successful": "Credentials updated."
+            "reauth_successful": "Credentials updated.",
+            "reconfigure_successful": "Settings updated."
         }
     },
     "entity": {

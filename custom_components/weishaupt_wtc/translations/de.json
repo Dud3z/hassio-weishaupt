@@ -1,5 +1,6 @@
 {
     "config": {
+        "flow_title": "Weishaupt WTC ({host})",
         "step": {
             "user": {
                 "title": "Weishaupt WTC Einrichtung",
@@ -12,12 +13,27 @@
                 }
             },
             "reconfigure": {
-                "title": "Optionale Module neu erkennen",
-                "description": "Fragt einmal Heizkreis 2, Heizkreis 3 und Solar ab und speichert das Ergebnis. Nur ausführen, wenn das Gerät normal antwortet: Anfragen an fehlende Module verbrauchen die begrenzten Anfrageplätze des Geräts, und ein gesperrtes Gerät erholt sich erst nach dem Stromlos-Machen."
+                "title": "Neu konfigurieren",
+                "description": "Adresse des Systemgeräts ändern oder optionale Module neu erkennen. Eine neue Adresse wird vor dem Speichern mit den gespeicherten Zugangsdaten geprüft.",
+                "data": {
+                    "host": "Host / IP-Adresse",
+                    "redetect_modules": "Optionale Module neu erkennen"
+                },
+                "data_description": {
+                    "redetect_modules": "Fragt einmal Heizkreis 2, Heizkreis 3 und Solar ab und speichert das Ergebnis. Nur ausführen, wenn das Gerät normal antwortet: Anfragen an fehlende Module verbrauchen die begrenzten Anfrageplätze des Geräts, und ein gesperrtes Gerät erholt sich erst nach dem Stromlos-Machen."
+                }
             },
             "reauth_confirm": {
                 "title": "Zugangsdaten erneut eingeben",
                 "description": "Das Weishaupt-Gerät unter {host} hat den gespeicherten Benutzernamen oder das Passwort abgelehnt.",
+                "data": {
+                    "username": "Benutzername",
+                    "password": "Passwort"
+                }
+            },
+            "discovery_confirm": {
+                "title": "Weishaupt Systemgerät gefunden",
+                "description": "Unter {host} wurde ein Weishaupt Systemgerät gefunden. Zugangsdaten eingeben, um es hinzuzufügen.",
                 "data": {
                     "username": "Benutzername",
                     "password": "Passwort"
@@ -31,7 +47,8 @@
         },
         "abort": {
             "already_configured": "Dieses Gerät ist bereits konfiguriert.",
-            "reauth_successful": "Zugangsdaten aktualisiert."
+            "reauth_successful": "Zugangsdaten aktualisiert.",
+            "reconfigure_successful": "Einstellungen aktualisiert."
         }
     },
     "entity": {
