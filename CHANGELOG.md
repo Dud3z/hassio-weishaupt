@@ -4,7 +4,14 @@
 
 - Improvement: Pause all requests after the device fails to answer properly (empty reply, `CMD_ERROR` on every register, timeout or unreachable): 2, 4, 8, 16, then at most 30 minutes, reset by the first healthy reply. A failed request also ends the current poll instead of sending the remaining batches right away. Entities are unavailable during the pause and the next poll waits for it to end. Immediate retries have locked the WEM's JSON interface until a power cycle (findings by @jvejmelka in [weishaupt-wem-can-esphome](https://github.com/jvejmelka/weishaupt-wem-can-esphome)).
 - Improvement: Allow at most one write per minute (Betriebsart select, Warmwasser switch, Warmwasser-Push button). A write refused by this limit or during a pause sends nothing and shows an error in Home Assistant instead of failing silently.
-- Fix: The test suite now also passes when all test modules run together (`python -m unittest discover -s tests`).
+- Improvement: Read each register no more often than its update class in Weishaupt's register table (30 s, 60 s or 10 min), and do not read registers behind disabled entities. With the default entities and no expansion modules this lowers the requests to the device from about 1200 to about 670 per hour. A register written by a select or switch is read back right away.
+- Feature: *Configure* changes the scan interval after setup.
+- Feature: Re-authenticate when the device rejects the stored credentials (HTTP 401) instead of failing every poll.
+- Feature: `Störung` binary sensor (problem) from the existing error block, with message type and error number as attributes.
+- Feature: Diagnostic `Verbindung` sensor showing `ok`, `paused` (with `paused_until`) or `error`.
+- Feature: Download diagnostics with raw register values, detected modules and connection state; host and credentials are redacted.
+- Maintenance: Keep the coordinator in `entry.runtime_data`; remove the unsupported `platforms` key from `manifest.json` and add `issue_tracker`; add a GitHub Actions workflow running the unit tests, hassfest and the HACS validation.
+- Fix: The test suite now also passes when all test modules run together (`python -m unittest discover -s tests`); the Home Assistant stand-ins live in one shared `tests/ha_stubs.py`.
 
 ## 0.3.2 - 2026-11-01
 

@@ -54,6 +54,10 @@ http://admin:Admin123@wem-sg/ajax/CanApiJson.json
 3. Enter the IP address (or hostname) of your Systemgerät
 4. Optionally adjust username, password, and scan interval
 
+The scan interval can be changed later under **Configure**. If the device rejects the stored password, Home Assistant asks for new credentials (**Re-authenticate**) and checks them against the device before storing them.
+
+**Download diagnostics** on the integration page returns the raw register values, the detected modules and the connection state, with host, username and password removed. Attach it to bug reports.
+
 ## Sensors
 
 The integration provides sensors across these device groups:
@@ -71,6 +75,8 @@ The integration provides sensors across these device groups:
 - Warmwasser: Status, Push, Ein/Aus (Schalter), Solltemperaturen, Ist-Temperatur, Zirkulation, Pumpe
 - Kaskade: Folgewechsel, Abgleichtemperatur, Modulation, Sollwerte
 - CANopen Fehler/Warnung Diagnoseblock (disabled by default)
+- Störung (binary sensor, *problem*): on while the Systemgerät reports an error; message type and error number as attributes
+- Verbindung (diagnostic): `ok`, `paused` (with `paused_until`) or `error`; stays available while the other entities are not
 - Uhrzeit und Datum
 
 ### WTC Kessel — Modbus 160-177
@@ -115,6 +121,8 @@ This integration uses the Weishaupt CanApiJson protocol — a CAN bus-like proto
 Based on research from [BorgNumberOne/Weishaupt_CanApiJson](https://github.com/BorgNumberOne/Weishaupt_CanApiJson).
 
 Reads are batched at up to 6 VG frames per request with a minimum ~300ms gap enforced between requests, since larger/faster batches have been observed to cause intermittent `CMD_ERROR` responses on some hardware.
+
+Each register is read no more often than the update class Weishaupt assigns it in its register table: every 30 s (temperatures, burner phase, output), 60 s (setpoints, operating modes, pressure) or 10 min (daily and total counters). The scan interval sets how often the integration checks which registers are due; values of registers that are not due are kept. Registers behind disabled entities are not read at all, so disabling entities you don't need reduces the load on the device.
 
 When the device does not answer properly (empty reply, `CMD_ERROR` on every register, timeout or unreachable), the integration stops the current poll and pauses all requests for 2 minutes, then 4, 8, 16 and at most 30 minutes on each further failure. The first healthy reply ends the pause. Meanwhile the entities are unavailable and switching is refused with a message. Retrying a struggling Systemgerät right away has been observed to lock its JSON interface until it is powered off ([jvejmelka/weishaupt-wem-can-esphome](https://github.com/jvejmelka/weishaupt-wem-can-esphome/blob/main/PROTOKOLL.md#8-wann-sich-der-wem-aufh%C3%A4ngt)). For the same reason, writes (Betriebsart, Warmwasser switch, Warmwasser-Push) are limited to one per minute. Only one client should use the JSON interface at a time.
 
