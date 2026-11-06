@@ -3,157 +3,18 @@
 from __future__ import annotations
 
 from datetime import timedelta
-import importlib.util
-from pathlib import Path
 from types import SimpleNamespace
-import sys
-import types
 import unittest
+from pathlib import Path
+import sys
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import ha_stubs  # noqa: E402  (installs the Home Assistant stand-ins)
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-PACKAGE_ROOT = REPO_ROOT / "custom_components" / "weishaupt_wtc"
-
-
-def load_module(module_name: str, file_path: Path):
-    """Load a module from file while preserving package-relative imports."""
-    spec = importlib.util.spec_from_file_location(module_name, file_path)
-    module = importlib.util.module_from_spec(spec)
-    assert spec is not None and spec.loader is not None
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-homeassistant_pkg = types.ModuleType("homeassistant")
-homeassistant_pkg.__path__ = []
-sys.modules.setdefault("homeassistant", homeassistant_pkg)
-
-components_pkg = types.ModuleType("homeassistant.components")
-components_pkg.__path__ = []
-sys.modules.setdefault("homeassistant.components", components_pkg)
-
-sensor_component = types.ModuleType("homeassistant.components.sensor")
-
-
-class SensorEntity:
-    """Minimal sensor entity stub, for test modules loaded after this one."""
-
-
-class SensorDeviceClass:
-    """Return the requested enum member name as a string."""
-
-    def __getattr__(self, name: str) -> str:
-        return name
-
-
-class SensorStateClass:
-    """Return the requested enum member name as a string."""
-
-    def __getattr__(self, name: str) -> str:
-        return name
-
-
-sensor_component.SensorEntity = SensorEntity
-sensor_component.SensorDeviceClass = SensorDeviceClass()
-sensor_component.SensorStateClass = SensorStateClass()
-sys.modules.setdefault("homeassistant.components.sensor", sensor_component)
-
-core = types.ModuleType("homeassistant.core")
-core.HomeAssistant = object
-core.callback = lambda func: func
-sys.modules.setdefault("homeassistant.core", core)
-
-const = types.ModuleType("homeassistant.const")
-const.PERCENTAGE = "%"
-const.UnitOfEnergy = SimpleNamespace(KILO_WATT_HOUR="kWh")
-const.UnitOfPower = SimpleNamespace(KILO_WATT="kW")
-const.UnitOfPressure = SimpleNamespace(BAR="bar")
-const.UnitOfTemperature = SimpleNamespace(CELSIUS="°C")
-const.UnitOfTime = SimpleNamespace(HOURS="h")
-sys.modules.setdefault("homeassistant.const", const)
-
-helpers_pkg = types.ModuleType("homeassistant.helpers")
-helpers_pkg.__path__ = []
-sys.modules.setdefault("homeassistant.helpers", helpers_pkg)
-
-update_coordinator = types.ModuleType("homeassistant.helpers.update_coordinator")
-
-
-class DataUpdateCoordinator:
-    """Minimal coordinator base stub exposing only what our subclass needs."""
-
-    def __class_getitem__(cls, item):
-        return cls
-
-    def __init__(self, hass, logger, name, update_interval) -> None:
-        self.hass = hass
-        self.logger = logger
-        self.name = name
-        self.update_interval = update_interval
-        self.data = None
-
-
-class UpdateFailed(Exception):
-    """Minimal update failure stub."""
-
-
-class CoordinatorEntity:
-    """Minimal coordinator entity stub, for test modules loaded after this one."""
-
-    def __class_getitem__(cls, item):
-        return cls
-
-    def __init__(self, coordinator) -> None:
-        self.coordinator = coordinator
-
-
-update_coordinator.CoordinatorEntity = CoordinatorEntity
-update_coordinator.DataUpdateCoordinator = DataUpdateCoordinator
-update_coordinator.UpdateFailed = UpdateFailed
-sys.modules.setdefault("homeassistant.helpers.update_coordinator", update_coordinator)
-
-custom_components_pkg = types.ModuleType("custom_components")
-custom_components_pkg.__path__ = [str(REPO_ROOT / "custom_components")]
-sys.modules.setdefault("custom_components", custom_components_pkg)
-
-integration_pkg = types.ModuleType("custom_components.weishaupt_wtc")
-integration_pkg.__path__ = [str(PACKAGE_ROOT)]
-sys.modules.setdefault("custom_components.weishaupt_wtc", integration_pkg)
-
-load_module("custom_components.weishaupt_wtc.const", PACKAGE_ROOT / "const.py")
-sensors = load_module(
-    "custom_components.weishaupt_wtc.sensors", PACKAGE_ROOT / "sensors.py"
-)
-
-api_stub = types.ModuleType("custom_components.weishaupt_wtc.api")
-
-
-class WeishauptApiClient:
-    """Unused by these tests; coordinator only needs the type for annotations."""
-
-
-class WeishauptApiError(Exception):
-    """Stub API error."""
-
-
-class WeishauptConnectionError(WeishauptApiError):
-    """Stub connection error."""
-
-
-class WeishauptRequestBlockedError(WeishauptApiError):
-    """Stub blocked-request error."""
-
-
-api_stub.WeishauptApiClient = WeishauptApiClient
-api_stub.WeishauptRequestBlockedError = WeishauptRequestBlockedError
-api_stub.WeishauptApiError = WeishauptApiError
-api_stub.WeishauptConnectionError = WeishauptConnectionError
-sys.modules["custom_components.weishaupt_wtc.api"] = api_stub
-
-coordinator_module = load_module(
-    "custom_components.weishaupt_wtc.coordinator", PACKAGE_ROOT / "coordinator.py"
-)
+sensors = ha_stubs.load("sensors")
+coordinator_module = ha_stubs.load("coordinator")
+WeishauptConnectionError = ha_stubs.load("api").WeishauptConnectionError
+UpdateFailed = ha_stubs.UpdateFailed
 
 
 class FakeClient:

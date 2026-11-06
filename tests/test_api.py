@@ -3,76 +3,15 @@
 from __future__ import annotations
 
 import asyncio
-import importlib.util
+import time
+import unittest
 from pathlib import Path
 import sys
-import time
-import types
-import unittest
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import ha_stubs  # noqa: E402  (installs the Home Assistant stand-ins)
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-PACKAGE_ROOT = REPO_ROOT / "custom_components" / "weishaupt_wtc"
-
-
-aiohttp_stub = types.ModuleType("aiohttp")
-
-
-class ClientConnectorError(Exception):
-    """Minimal aiohttp exception stub used by the API client."""
-
-
-class BasicAuth:
-    """Minimal aiohttp auth stub."""
-
-    def __init__(self, login: str, password: str) -> None:
-        self.login = login
-        self.password = password
-
-
-class ClientTimeout:
-    """Minimal aiohttp timeout stub."""
-
-    def __init__(self, total: int | None = None) -> None:
-        self.total = total
-
-
-class ClientSession:
-    """Minimal aiohttp session stub for type compatibility."""
-
-    closed = False
-
-    async def close(self) -> None:
-        """Provide the interface used by the client close method."""
-
-
-aiohttp_stub.ClientConnectorError = ClientConnectorError
-aiohttp_stub.BasicAuth = BasicAuth
-aiohttp_stub.ClientTimeout = ClientTimeout
-aiohttp_stub.ClientSession = ClientSession
-sys.modules.setdefault("aiohttp", aiohttp_stub)
-
-
-def load_module(module_name: str, file_path: Path):
-    """Load a module from file while preserving package-relative imports."""
-    spec = importlib.util.spec_from_file_location(module_name, file_path)
-    module = importlib.util.module_from_spec(spec)
-    assert spec is not None and spec.loader is not None
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-custom_components_pkg = types.ModuleType("custom_components")
-custom_components_pkg.__path__ = [str(REPO_ROOT / "custom_components")]
-sys.modules.setdefault("custom_components", custom_components_pkg)
-
-integration_pkg = types.ModuleType("custom_components.weishaupt_wtc")
-integration_pkg.__path__ = [str(PACKAGE_ROOT)]
-sys.modules.setdefault("custom_components.weishaupt_wtc", integration_pkg)
-
-load_module("custom_components.weishaupt_wtc.const", PACKAGE_ROOT / "const.py")
-api = load_module("custom_components.weishaupt_wtc.api", PACKAGE_ROOT / "api.py")
+api = ha_stubs.load("api")
 
 
 class EmptyResponseClient(api.WeishauptApiClient):
