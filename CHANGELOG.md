@@ -10,7 +10,7 @@
 - Feature: `Störung` binary sensor (problem) from the existing error block, with message type and error number as attributes.
 - Feature: Diagnostic `Verbindung` sensor showing `ok`, `paused` (with `paused_until`) or `error`.
 - Feature: Download diagnostics with raw register values, detected modules and connection state; host and credentials are redacted.
-- Maintenance: Keep the coordinator in `entry.runtime_data`; remove the unsupported `platforms` key from `manifest.json` and add `issue_tracker`; add a GitHub Actions workflow running the unit tests, hassfest and the HACS validation.
+- Maintenance: Keep the coordinator in `entry.runtime_data`; remove the unsupported `platforms` key from `manifest.json` and add `issue_tracker`; remove the invalid `type` key from `hacs.json`; add a GitHub Actions workflow running the unit tests, hassfest and the HACS validation.
 - Fix: The test suite now also passes when all test modules run together (`python -m unittest discover -s tests`); the Home Assistant stand-ins live in one shared `tests/ha_stubs.py`.
 
 ## 0.3.2 - 2026-11-01

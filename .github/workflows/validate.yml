@@ -36,5 +36,7 @@ jobs:
       - uses: hacs/action@main
         with:
           category: integration
-          # Custom integrations are not in the home-assistant/brands repository.
-          ignore: brands
+          # brands: custom integrations are not in the home-assistant/brands repository.
+          # description, issues, topics: GitHub repository settings, which forks lack
+          # by default; they say nothing about the code.
+          ignore: brands description issues topics
