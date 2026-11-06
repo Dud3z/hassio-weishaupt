@@ -6,7 +6,6 @@ import logging
 
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME, Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import WeishauptApiClient
@@ -15,7 +14,6 @@ from .const import (
     CONF_SCAN_INTERVAL,
     CONF_SUSPENDED,
     DEFAULT_SCAN_INTERVAL,
-    DOMAIN,
 )
 from .coordinator import WeishauptConfigEntry, WeishauptDataUpdateCoordinator
 from .sensors import WeishauptDeviceGroup
@@ -87,6 +85,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: WeishauptConfigEntry) ->
 async def async_unload_entry(hass: HomeAssistant, entry: WeishauptConfigEntry) -> bool:
     """Unload a config entry."""
     if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
-        # A reload or removal starts fresh; a still-failing device raises it again.
-        ir.async_delete_issue(hass, DOMAIN, entry.runtime_data.unresponsive_issue_id)
+        # A reload or removal starts fresh; issues that still apply come back.
+        entry.runtime_data.delete_issues()
     return unload_ok

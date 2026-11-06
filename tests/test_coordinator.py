@@ -341,6 +341,16 @@ class CoordinatorRepairIssueTests(unittest.IsolatedAsyncioTestCase):
         await self.poll_at(coordinator, 31 * 60)
         self.assertNotIn(issue_id, ha_stubs.issues)
 
+    async def test_unload_removes_every_issue_of_the_entry(self) -> None:
+        coordinator = self.make(FlakyClient(WeishauptConnectionError("timeout")))
+        for name in ("device_unresponsive", "device_fault", "clock_drift", "maintenance_due"):
+            ha_stubs.issues[f"{name}_entry-123"] = {}
+        ha_stubs.issues["device_fault_other-entry"] = {}
+
+        coordinator.delete_issues()
+
+        self.assertEqual(list(ha_stubs.issues), ["device_fault_other-entry"])
+
     async def test_wrong_credentials_raise_no_issue(self) -> None:
         """Rejected credentials have their own reauth flow."""
         client = FlakyClient(ha_stubs.load("api").WeishauptAuthError("401"))

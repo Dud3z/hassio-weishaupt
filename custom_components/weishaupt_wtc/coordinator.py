@@ -241,6 +241,12 @@ class WeishauptDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 },
             )
 
+    def delete_issues(self) -> None:
+        """Remove every repair issue of this entry; still-valid ones come back on the next poll."""
+        ir.async_delete_issue(self.hass, DOMAIN, self.unresponsive_issue_id)
+        for name in ("device_fault", "clock_drift", "maintenance_due"):
+            self._issue(name, False)
+
     def _issue(self, name: str, active: bool, **placeholders: str) -> None:
         """Create or delete the repair issue `name` for this config entry."""
         if self.config_entry is None:
