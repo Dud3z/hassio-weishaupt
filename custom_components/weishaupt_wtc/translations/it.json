@@ -342,6 +342,9 @@
             },
             "naechste_wartung": {
                 "name": "Prossima manutenzione"
+            },
+            "anfragen_pro_stunde": {
+                "name": "Richieste all'ora"
             }
         },
         "button": {
@@ -363,6 +366,9 @@
         "binary_sensor": {
             "sg_stoerung": {
                 "name": "Guasto"
+            },
+            "anlagendruck_niedrig": {
+                "name": "Pressione impianto bassa"
             }
         }
     },
@@ -374,11 +380,13 @@
                 "data": {
                     "scan_interval": "Intervallo di scansione (secondi)",
                     "maintenance_interval_months": "Intervallo di manutenzione (mesi)",
-                    "last_maintenance": "Ultima manutenzione"
+                    "last_maintenance": "Ultima manutenzione",
+                    "pressure_min": "Avviso pressione bassa sotto (bar)"
                 },
                 "data_description": {
                     "maintenance_interval_months": "0 disattiva il promemoria di manutenzione.",
-                    "last_maintenance": "La prossima manutenzione è prevista un intervallo dopo questa data. Il pulsante 'Manutenzione eseguita' la imposta a oggi."
+                    "last_maintenance": "La prossima manutenzione è prevista un intervallo dopo questa data. Il pulsante 'Manutenzione eseguita' la imposta a oggi.",
+                    "pressure_min": "Il sensore 'Pressione impianto bassa' si attiva sotto questo valore. Verificare la pressione normale dell'impianto sul manometro o con il tecnico."
                 }
             }
         }

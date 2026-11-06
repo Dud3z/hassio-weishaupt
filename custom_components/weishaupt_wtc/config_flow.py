@@ -33,7 +33,9 @@ from .const import (
     CONF_DETECTED_GROUPS,
     CONF_LAST_MAINTENANCE,
     CONF_MAINTENANCE_INTERVAL,
+    CONF_PRESSURE_MIN,
     CONF_SCAN_INTERVAL,
+    DEFAULT_PRESSURE_MIN,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -254,6 +256,10 @@ class WeishauptOptionsFlow(OptionsFlowWithReload):
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_SCAN_INTERVAL, default=current): SCAN_INTERVAL_VALIDATOR,
+                    vol.Required(
+                        CONF_PRESSURE_MIN,
+                        default=options.get(CONF_PRESSURE_MIN, DEFAULT_PRESSURE_MIN),
+                    ): vol.All(vol.Coerce(float), vol.Range(min=0.3, max=3.0)),
                     # 0 turns the maintenance reminder off.
                     vol.Required(
                         CONF_MAINTENANCE_INTERVAL,

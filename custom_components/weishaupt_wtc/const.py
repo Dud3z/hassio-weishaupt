@@ -13,6 +13,9 @@ CONF_SUSPENDED = "suspended"
 # Maintenance reminder (options): interval in months (0 = off), last date (ISO).
 CONF_MAINTENANCE_INTERVAL = "maintenance_interval_months"
 CONF_LAST_MAINTENANCE = "last_maintenance"
+# Pressure below this (bar) turns the "Anlagendruck niedrig" problem sensor on.
+CONF_PRESSURE_MIN = "pressure_min"
+DEFAULT_PRESSURE_MIN = 1.0
 
 DEFAULT_USERNAME = "admin"
 DEFAULT_PASSWORD = "Admin123"

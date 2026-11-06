@@ -11,6 +11,9 @@
             },
             "naechste_wartung": {
                 "default": "mdi:wrench-clock"
+            },
+            "anfragen_pro_stunde": {
+                "default": "mdi:swap-vertical"
             }
         },
         "switch": {

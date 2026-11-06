@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections import deque
 import logging
 import math
 import time
@@ -128,7 +129,16 @@ class WeishauptApiClient:
         self._paused_until: float | None = None
         # Set by the "Abfragen pausieren" switch: send nothing until cleared.
         self.suspended = False
+        self._sent_at: deque[float] = deque()  # time.monotonic() of each request sent
         self._last_write_at: float | None = None
+
+    @property
+    def requests_last_hour(self) -> int:
+        """Return how many requests were sent to the device in the last hour."""
+        cutoff = time.monotonic() - 3600
+        while self._sent_at and self._sent_at[0] < cutoff:
+            self._sent_at.popleft()
+        return len(self._sent_at)
 
     @property
     def pause_remaining(self) -> float:
@@ -200,6 +210,7 @@ class WeishauptApiClient:
         async with self._request_lock:
             self._raise_if_paused()
             await self._wait_for_request_slot()
+            self._sent_at.append(time.monotonic())
             try:
                 response = await self._post_once(payload)
             except WeishauptAuthError:

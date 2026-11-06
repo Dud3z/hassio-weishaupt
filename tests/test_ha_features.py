@@ -503,6 +503,60 @@ class MaintenanceEntityTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(due, health.add_months(today, 12))
 
 
+class RequestRateTests(unittest.IsolatedAsyncioTestCase):
+    async def test_counts_requests_of_the_last_hour_including_failed_ones(self) -> None:
+        client = api.WeishauptApiClient("wem-sg", "admin", "x", min_request_interval=0)
+        client._post_once = AsyncMock(return_value={"CAPI": {"N01": {"VG": "020200253302000101"}}})
+        params = [{"key": f"p{i}", "mi": 2, "mx": 0, "ox": 0x2533, "os": 2, "vs": 1} for i in range(8)]
+        now = [1000.0]
+        with patch.object(api.time, "monotonic", lambda: now[0]):
+            await client.read_parameters(params)  # 8 registers -> 2 requests
+            self.assertEqual(client.requests_last_hour, 2)
+
+            client._post_once = AsyncMock(side_effect=api.WeishauptConnectionError("timeout"))
+            with self.assertLogs("custom_components.weishaupt_wtc.api", level="WARNING"):
+                with self.assertRaises(api.WeishauptConnectionError):
+                    await client.read_parameters(params)
+            self.assertEqual(client.requests_last_hour, 3)
+
+            now[0] += 3601
+            self.assertEqual(client.requests_last_hour, 0)
+
+    def test_sensor_shows_the_count_and_stays_available(self) -> None:
+        entity = sensor.WeishauptRequestRateSensor(
+            SimpleNamespace(client=SimpleNamespace(requests_last_hour=42), last_update_success=False),
+            ha_stubs.ConfigEntry(ENTRY_DATA),
+        )
+        self.assertEqual(entity.native_value, 42)
+        self.assertTrue(entity.available)
+
+
+class LowPressureTests(unittest.TestCase):
+    def make(self, raw, options=None):
+        data = {} if raw is None else {"wtc_anlagendruck": {"value_int": raw}}
+        return binary_sensor.WeishauptLowPressureBinarySensor(
+            SimpleNamespace(data=data, last_update_success=True),
+            ha_stubs.ConfigEntry(ENTRY_DATA, options),
+        )
+
+    def test_threshold_default_and_option(self) -> None:
+        self.assertTrue(self.make(95).is_on)  # 0.95 bar < 1.0 default
+        self.assertFalse(self.make(150).is_on)
+        self.assertTrue(self.make(150, {"pressure_min": 1.6}).is_on)
+        self.assertEqual(
+            self.make(95).extra_state_attributes, {"anlagendruck": 0.95, "schwelle": 1.0}
+        )
+
+    def test_unavailable_without_a_reading(self) -> None:
+        for raw in (None, 0x8000):
+            entity = self.make(raw)
+            self.assertFalse(entity.available)
+            self.assertIsNone(entity.is_on)
+
+    def test_reads_only_the_pressure_register(self) -> None:
+        self.assertEqual(self.make(150).coordinator_context, {"wtc_anlagendruck"})
+
+
 class FaultParsingTests(unittest.TestCase):
     def test_is_fault(self) -> None:
         self.assertTrue(parsing.is_fault(0x0001))

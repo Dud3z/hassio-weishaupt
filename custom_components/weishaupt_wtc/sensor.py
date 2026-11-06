@@ -7,7 +7,11 @@ import logging
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorStateClass,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
@@ -116,7 +120,10 @@ async def async_setup_entry(
         model=DEVICE_GROUP_MODELS[WeishauptDeviceGroup.SG],
     )
 
-    entities: list[SensorEntity] = [WeishauptConnectionSensor(coordinator, entry)]
+    entities: list[SensorEntity] = [
+        WeishauptConnectionSensor(coordinator, entry),
+        WeishauptRequestRateSensor(coordinator, entry),
+    ]
     if entry.options.get(CONF_MAINTENANCE_INTERVAL):
         entities.append(WeishauptNextMaintenanceSensor(coordinator, entry))
     for sensor_def in ALL_SENSORS:
@@ -444,3 +451,37 @@ class WeishauptNextMaintenanceSensor(
     def native_value(self) -> date | None:
         """Return the due date; unknown until a last maintenance date is set."""
         return next_maintenance(self._entry.options)
+
+
+class WeishauptRequestRateSensor(
+    CoordinatorEntity[WeishauptDataUpdateCoordinator], SensorEntity
+):
+    """Requests sent to the device in the last hour, to see the load the WEM gets."""
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "anfragen_pro_stunde"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(
+        self, coordinator: WeishauptDataUpdateCoordinator, entry: ConfigEntry
+    ) -> None:
+        """Initialize the request rate sensor."""
+        super().__init__(coordinator, context=frozenset())  # reads no register
+        self._entry = entry
+        self._attr_unique_id = f"{entry.entry_id}_anfragen_pro_stunde"
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Attach to the Systemgerät."""
+        return DeviceInfo(identifiers={_system_device_identifier(self._entry.entry_id)})
+
+    @property
+    def available(self) -> bool:
+        """Also counts while the device fails: the count explains the failure."""
+        return True
+
+    @property
+    def native_value(self) -> int:
+        """Return the number of requests sent in the last hour."""
+        return self.coordinator.client.requests_last_hour

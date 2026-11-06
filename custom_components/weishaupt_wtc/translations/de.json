@@ -342,6 +342,9 @@
             },
             "naechste_wartung": {
                 "name": "Nächste Wartung"
+            },
+            "anfragen_pro_stunde": {
+                "name": "Anfragen pro Stunde"
             }
         },
         "button": {
@@ -363,6 +366,9 @@
         "binary_sensor": {
             "sg_stoerung": {
                 "name": "Störung"
+            },
+            "anlagendruck_niedrig": {
+                "name": "Anlagendruck niedrig"
             }
         }
     },
@@ -374,11 +380,13 @@
                 "data": {
                     "scan_interval": "Abfrageintervall (Sekunden)",
                     "maintenance_interval_months": "Wartungsintervall (Monate)",
-                    "last_maintenance": "Letzte Wartung"
+                    "last_maintenance": "Letzte Wartung",
+                    "pressure_min": "Warnung bei Anlagendruck unter (bar)"
                 },
                 "data_description": {
                     "maintenance_interval_months": "0 schaltet die Wartungserinnerung ab.",
-                    "last_maintenance": "Die nächste Wartung ist ein Intervall nach diesem Datum fällig. Der Knopf „Wartung erledigt“ setzt es auf heute."
+                    "last_maintenance": "Die nächste Wartung ist ein Intervall nach diesem Datum fällig. Der Knopf „Wartung erledigt“ setzt es auf heute.",
+                    "pressure_min": "Der Sensor „Anlagendruck niedrig“ schaltet unterhalb dieses Werts ein. Den normalen Druck Ihrer Anlage am Manometer ablesen oder beim Heizungsbauer erfragen."
                 }
             }
         }

@@ -79,6 +79,7 @@ The integration provides sensors across these device groups:
 - CANopen Fehler/Warnung Diagnoseblock (disabled by default)
 - Störung (binary sensor, *problem*): on while the Systemgerät reports an error; message type and error number as attributes
 - Verbindung (diagnostic): `ok`, `paused` (with `paused_until`), `suspended` or `error`; stays available while the other entities are not
+- Anfragen pro Stunde (diagnostic): requests sent to the device in the last hour
 - Abfragen pausieren (switch): stops every request to the device while on, e.g. while the WEM app or a technician uses it
 - Uhrzeit und Datum
 
@@ -87,6 +88,7 @@ The integration provides sensors across these device groups:
 - Istleistung / Modulationsgrad in % (CanApiJson `OX=0x2534`, not part of the Modbus table)
 - Vorlaufsolltemperatur, Kesseltemperatur, Rücklauftemperatur, Abgastemperatur
 - Volumenstrom VPT, Anlagendruck
+- Anlagendruck niedrig (binary sensor, *problem*): on below the threshold set under **Configure** (default 1.0 bar)
 - Wärmeleistung VPT
 - Tageswärmemenge Vortag (Gesamt / Heizen / Warmwasser)
 

@@ -342,6 +342,9 @@
             },
             "naechste_wartung": {
                 "name": "Next maintenance"
+            },
+            "anfragen_pro_stunde": {
+                "name": "Requests per hour"
             }
         },
         "button": {
@@ -363,6 +366,9 @@
         "binary_sensor": {
             "sg_stoerung": {
                 "name": "Fault"
+            },
+            "anlagendruck_niedrig": {
+                "name": "System pressure low"
             }
         }
     },
@@ -374,11 +380,13 @@
                 "data": {
                     "scan_interval": "Scan interval (seconds)",
                     "maintenance_interval_months": "Maintenance interval (months)",
-                    "last_maintenance": "Last maintenance"
+                    "last_maintenance": "Last maintenance",
+                    "pressure_min": "Low pressure warning below (bar)"
                 },
                 "data_description": {
                     "maintenance_interval_months": "0 turns the maintenance reminder off.",
-                    "last_maintenance": "The next maintenance is due one interval after this date. The 'Maintenance done' button sets it to today."
+                    "last_maintenance": "The next maintenance is due one interval after this date. The 'Maintenance done' button sets it to today.",
+                    "pressure_min": "The 'System pressure low' sensor turns on below this value. Check the normal pressure of your system on the manometer or with your heating engineer."
                 }
             }
         }
