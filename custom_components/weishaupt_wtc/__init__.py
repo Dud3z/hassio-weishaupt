@@ -10,7 +10,13 @@ from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import WeishauptApiClient
-from .const import CONF_DETECTED_GROUPS, CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL, DOMAIN
+from .const import (
+    CONF_DETECTED_GROUPS,
+    CONF_SCAN_INTERVAL,
+    CONF_SUSPENDED,
+    DEFAULT_SCAN_INTERVAL,
+    DOMAIN,
+)
 from .coordinator import WeishauptConfigEntry, WeishauptDataUpdateCoordinator
 from .sensors import WeishauptDeviceGroup
 
@@ -52,6 +58,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: WeishauptConfigEntry) ->
         password=password,
         session=session,
     )
+
+    # Restored before the first refresh, so a paused integration sends nothing on startup.
+    client.suspended = entry.data.get(CONF_SUSPENDED, False)
 
     stored = entry.data.get(CONF_DETECTED_GROUPS)
     coordinator = WeishauptDataUpdateCoordinator(

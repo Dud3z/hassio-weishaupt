@@ -99,6 +99,10 @@ class WeishauptDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch data from the Weishaupt device."""
+        if self.client.suspended:
+            # Paused by the user: keep the last values and send nothing.
+            return dict(self.data or {})
+
         detecting = self.active_groups is None
         optional_probes: dict[WeishauptDeviceGroup, WeishauptSensorDefinition] = {}
         sensor_definitions = POLLED_SENSORS

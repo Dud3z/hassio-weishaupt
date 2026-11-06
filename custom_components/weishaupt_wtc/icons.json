@@ -5,7 +5,8 @@
                 "default": "mdi:lan-connect",
                 "state": {
                     "paused": "mdi:lan-pending",
-                    "error": "mdi:lan-disconnect"
+                    "error": "mdi:lan-disconnect",
+                    "suspended": "mdi:pause-circle"
                 }
             }
         },
@@ -14,6 +15,12 @@
                 "default": "mdi:water-boiler",
                 "state": {
                     "off": "mdi:water-boiler-off"
+                }
+            },
+            "abfragen_pausieren": {
+                "default": "mdi:pause-circle-outline",
+                "state": {
+                    "on": "mdi:pause-circle"
                 }
             }
         }

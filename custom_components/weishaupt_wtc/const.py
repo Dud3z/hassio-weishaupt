@@ -8,6 +8,8 @@ CONF_PASSWORD = "password"
 CONF_SCAN_INTERVAL = "scan_interval"
 # Optional groups found on this device (e.g. ["hk"]); absent until detection has run.
 CONF_DETECTED_GROUPS = "detected_groups"
+# True while the "Abfragen pausieren" switch stops all requests to the device.
+CONF_SUSPENDED = "suspended"
 
 DEFAULT_USERNAME = "admin"
 DEFAULT_PASSWORD = "Admin123"

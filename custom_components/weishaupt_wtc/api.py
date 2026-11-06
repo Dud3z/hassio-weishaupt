@@ -126,6 +126,8 @@ class WeishauptApiClient:
         self._min_request_interval = min_request_interval
         self._failures = 0
         self._paused_until: float | None = None
+        # Set by the "Abfragen pausieren" switch: send nothing until cleared.
+        self.suspended = False
         self._last_write_at: float | None = None
 
     @property
@@ -154,6 +156,11 @@ class WeishauptApiClient:
         self._paused_until = None
 
     def _raise_if_paused(self) -> None:
+        if self.suspended:
+            raise WeishauptRequestBlockedError(
+                "Requests to the Weishaupt device are paused by the "
+                "\"Abfragen pausieren\" switch"
+            )
         remaining = self.pause_remaining
         if remaining > 0:
             raise WeishauptRequestBlockedError(

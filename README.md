@@ -76,7 +76,8 @@ The integration provides sensors across these device groups:
 - Kaskade: Folgewechsel, Abgleichtemperatur, Modulation, Sollwerte
 - CANopen Fehler/Warnung Diagnoseblock (disabled by default)
 - Störung (binary sensor, *problem*): on while the Systemgerät reports an error; message type and error number as attributes
-- Verbindung (diagnostic): `ok`, `paused` (with `paused_until`) or `error`; stays available while the other entities are not
+- Verbindung (diagnostic): `ok`, `paused` (with `paused_until`), `suspended` or `error`; stays available while the other entities are not
+- Abfragen pausieren (switch): stops every request to the device while on, e.g. while the WEM app or a technician uses it
 - Uhrzeit und Datum
 
 ### WTC Kessel — Modbus 160-177

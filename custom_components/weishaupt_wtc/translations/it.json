@@ -319,6 +319,7 @@
                 "state": {
                     "ok": "OK",
                     "paused": "In pausa dopo risposte errate",
+                    "suspended": "Sospeso manualmente",
                     "error": "Errore"
                 }
             }
@@ -331,6 +332,9 @@
         "switch": {
             "sg_betriebsart_warmwasser": {
                 "name": "ACS On/Off"
+            },
+            "abfragen_pausieren": {
+                "name": "Sospendi richieste"
             }
         },
         "binary_sensor": {

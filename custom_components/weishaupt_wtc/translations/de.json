@@ -319,6 +319,7 @@
                 "state": {
                     "ok": "OK",
                     "paused": "Pausiert nach fehlerhaften Antworten",
+                    "suspended": "Manuell pausiert",
                     "error": "Fehler"
                 }
             }
@@ -331,6 +332,9 @@
         "switch": {
             "sg_betriebsart_warmwasser": {
                 "name": "Warmwasser Ein/Aus"
+            },
+            "abfragen_pausieren": {
+                "name": "Abfragen pausieren"
             }
         },
         "binary_sensor": {

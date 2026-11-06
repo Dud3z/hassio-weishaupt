@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 import unittest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 from pathlib import Path
 import sys
 
@@ -17,6 +17,7 @@ sensors = ha_stubs.load("sensors")
 coordinator_module = ha_stubs.load("coordinator")
 sensor = ha_stubs.load("sensor")
 binary_sensor = ha_stubs.load("binary_sensor")
+switch = ha_stubs.load("switch")
 diagnostics = ha_stubs.load("diagnostics")
 try:
     config_flow = ha_stubs.load("config_flow")
@@ -43,6 +44,7 @@ class CoordinatorAuthTests(unittest.IsolatedAsyncioTestCase):
         client = SimpleNamespace(
             read_parameters_with_status=AsyncMock(side_effect=api.WeishauptAuthError("401")),
             pause_remaining=0,
+            suspended=False,
         )
         coordinator = coordinator_module.WeishauptDataUpdateCoordinator(
             hass=SimpleNamespace(), client=client, scan_interval=30, active_groups=set()
@@ -82,7 +84,7 @@ class ConnectionSensorTests(unittest.TestCase):
         coordinator = SimpleNamespace(
             last_update_success=success,
             last_exception=error,
-            client=SimpleNamespace(pause_remaining=pause),
+            client=SimpleNamespace(pause_remaining=pause, suspended=False),
         )
         return sensor.WeishauptConnectionSensor(coordinator, ha_stubs.ConfigEntry(ENTRY_DATA))
 
@@ -181,6 +183,69 @@ class OptionsFlowTests(unittest.IsolatedAsyncioTestCase):
         result = await self.make({}).async_step_init({"scan_interval": 120})
 
         self.assertEqual(result["data"], {"scan_interval": 120})
+
+
+class PauseSwitchTests(unittest.IsolatedAsyncioTestCase):
+    """The pause switch stops every request and survives a restart."""
+
+    async def asyncSetUp(self) -> None:
+        self.client = api.WeishauptApiClient("wem-sg", "admin", "x", min_request_interval=0)
+        self.client._post_once = AsyncMock(return_value={"CAPI": {}})
+        self.entry = ha_stubs.ConfigEntry(ENTRY_DATA)
+        self.coordinator = SimpleNamespace(
+            client=self.client,
+            async_request_refresh=AsyncMock(),
+            async_update_listeners=Mock(),
+        )
+        self.switch = switch.WeishauptPauseSwitch(self.coordinator, self.entry)
+        self.switch.hass = SimpleNamespace(
+            config_entries=SimpleNamespace(
+                async_update_entry=lambda entry, data: entry.data.update(data)
+            )
+        )
+        self.switch.async_write_ha_state = Mock()
+
+    async def test_paused_client_sends_nothing(self) -> None:
+        await self.switch.async_turn_on()
+
+        self.assertTrue(self.switch.is_on)
+        self.assertTrue(self.entry.data["suspended"])
+        with self.assertRaises(api.WeishauptRequestBlockedError):
+            await self.client.read_parameters([{"key": "k", "mi": 2, "mx": 0, "ox": 1, "os": 2, "vs": 1}])
+        with self.assertRaises(api.WeishauptRequestBlockedError):
+            await self.client.write_parameter(0x03, 0x00, 0x2520, 0x02, 1, 1)
+        self.client._post_once.assert_not_awaited()
+
+    async def test_resume_reads_right_away(self) -> None:
+        await self.switch.async_turn_on()
+        await self.switch.async_turn_off()
+
+        self.assertFalse(self.switch.is_on)
+        self.assertFalse(self.entry.data["suspended"])
+        self.coordinator.async_request_refresh.assert_awaited_once()
+
+    def test_stays_available(self) -> None:
+        self.assertTrue(self.switch.available)
+
+    async def test_coordinator_keeps_last_values_while_paused(self) -> None:
+        self.client.suspended = True
+        client_read = AsyncMock()
+        self.client.read_parameters_with_status = client_read
+        coordinator = coordinator_module.WeishauptDataUpdateCoordinator(
+            hass=SimpleNamespace(), client=self.client, scan_interval=30, active_groups=set()
+        )
+        coordinator.data = {"wtc_kesseltemperatur": {"value_int": 450}}
+
+        self.assertEqual(await coordinator._async_update_data(), coordinator.data)
+        client_read.assert_not_awaited()
+
+    def test_connection_sensor_shows_the_pause(self) -> None:
+        self.client.suspended = True
+        sensor_entity = sensor.WeishauptConnectionSensor(
+            SimpleNamespace(last_update_success=True, last_exception=None, client=self.client),
+            self.entry,
+        )
+        self.assertEqual(sensor_entity.native_value, "suspended")
 
 
 class FaultParsingTests(unittest.TestCase):

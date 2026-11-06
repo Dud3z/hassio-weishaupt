@@ -21,6 +21,8 @@ UpdateFailed = ha_stubs.UpdateFailed
 class FakeClient:
     """Records the params passed to the read and returns canned (results, answered)."""
 
+    suspended = False
+
     def __init__(self, responses: list[tuple[dict, set]]) -> None:
         self._responses = responses
         self.calls: list[list[dict]] = []
@@ -158,6 +160,8 @@ class CoordinatorOptionalGroupDetectionTests(unittest.IsolatedAsyncioTestCase):
 class PausingClient:
     """Fails the first read and reports a pause, like the real client's backoff."""
 
+    suspended = False
+
     def __init__(self, pause_remaining: float) -> None:
         self.pause_remaining = pause_remaining
         self.reads = 0
@@ -188,6 +192,8 @@ class CoordinatorBackoffTests(unittest.IsolatedAsyncioTestCase):
 
 class RecordingClient:
     """Answers every requested register with value 0 and records the keys."""
+
+    suspended = False
 
     def __init__(self) -> None:
         self.calls: list[set[str]] = []
@@ -274,6 +280,8 @@ class CoordinatorPollIntervalTests(unittest.IsolatedAsyncioTestCase):
 
 class FlakyClient:
     """Fails while `failing` is set, like a device that stopped answering."""
+
+    suspended = False
 
     def __init__(self, error: Exception) -> None:
         self.failing = True

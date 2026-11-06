@@ -1,6 +1,7 @@
 """Switch platform for Weishaupt WTC integration.
 
-Exposes the Warmwasser on/off object (MI 03 / OX 0x2520) as a Home Assistant switch.
+Exposes the Warmwasser on/off object (MI 03 / OX 0x2520) as a Home Assistant
+switch, and a switch that pauses all requests to the device.
 """
 
 from __future__ import annotations
@@ -13,10 +14,13 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .api import WeishauptRequestBlockedError
+from .const import CONF_SUSPENDED
+from .coordinator import WeishauptDataUpdateCoordinator
 from .sensor import DEVICE_GROUP_MODELS, DEVICE_GROUP_NAMES, _device_identifier, _is_group_active, _via_device_id
 from .sensors import ALL_SENSORS, WeishauptDeviceGroup, WeishauptSensorDefinition
 
@@ -38,7 +42,7 @@ async def async_setup_entry(
     """Set up Weishaupt Switch entities from a config entry."""
     coordinator = entry.runtime_data
 
-    entities: list[WeishauptWarmwasserSwitch] = []
+    entities: list[SwitchEntity] = [WeishauptPauseSwitch(coordinator, entry)]
     for sensor_def in ALL_SENSORS:
         if sensor_def.key == SWITCH_KEY and _is_group_active(
             coordinator, sensor_def.group
@@ -120,3 +124,62 @@ class WeishauptWarmwasserSwitch(CoordinatorEntity, SwitchEntity):
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn Warmwasser off (Betriebsart Aus)."""
         await self._write_betriebsart(WW_AUS)
+
+
+class WeishauptPauseSwitch(
+    CoordinatorEntity[WeishauptDataUpdateCoordinator], SwitchEntity
+):
+    """Stop all requests to the device, e.g. while the WEM app or a technician uses it.
+
+    The WEM handles only one client at a time. While on, the last values stay
+    and switching is refused. Stored in the config entry, so it already holds
+    for the first refresh after a restart.
+    """
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "abfragen_pausieren"
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(
+        self, coordinator: WeishauptDataUpdateCoordinator, entry: ConfigEntry
+    ) -> None:
+        """Initialize the pause switch."""
+        super().__init__(coordinator, context=frozenset())  # reads no register
+        self._entry = entry
+        self._attr_unique_id = f"{entry.entry_id}_abfragen_pausieren"
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Attach to the Systemgerät."""
+        return DeviceInfo(
+            identifiers={_device_identifier(self._entry.entry_id, WeishauptDeviceGroup.SG)}
+        )
+
+    @property
+    def available(self) -> bool:
+        """Stay available, so the pause can be lifted while the device fails."""
+        return True
+
+    @property
+    def is_on(self) -> bool:
+        """Return True while requests are paused."""
+        return self.coordinator.client.suspended
+
+    async def _set(self, suspended: bool) -> None:
+        self.coordinator.client.suspended = suspended
+        self.hass.config_entries.async_update_entry(
+            self._entry, data={**self._entry.data, CONF_SUSPENDED: suspended}
+        )
+        if suspended:
+            self.coordinator.async_update_listeners()  # the connection sensor shows it
+        else:
+            await self.coordinator.async_request_refresh()
+        self.async_write_ha_state()
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Pause all requests."""
+        await self._set(True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Resume requests and read right away."""
+        await self._set(False)

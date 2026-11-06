@@ -319,6 +319,7 @@
                 "state": {
                     "ok": "OK",
                     "paused": "Paused after failed replies",
+                    "suspended": "Paused manually",
                     "error": "Error"
                 }
             }
@@ -331,6 +332,9 @@
         "switch": {
             "sg_betriebsart_warmwasser": {
                 "name": "DHW On/Off"
+            },
+            "abfragen_pausieren": {
+                "name": "Pause requests"
             }
         },
         "binary_sensor": {

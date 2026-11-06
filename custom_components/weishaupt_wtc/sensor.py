@@ -363,7 +363,7 @@ class WeishauptConnectionSensor(
     _attr_has_entity_name = True
     _attr_translation_key = "verbindung"
     _attr_device_class = SensorDeviceClass.ENUM
-    _attr_options = ["ok", "paused", "error"]
+    _attr_options = ["ok", "paused", "suspended", "error"]
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(
@@ -386,7 +386,9 @@ class WeishauptConnectionSensor(
 
     @property
     def native_value(self) -> str:
-        """Return ok, paused (backoff after a failed reply) or error."""
+        """Return ok, paused (backoff after a failed reply), suspended (switch) or error."""
+        if self.coordinator.client.suspended:
+            return "suspended"
         if self.coordinator.last_update_success:
             return "ok"
         if self.coordinator.client.pause_remaining > 0:
