@@ -36,6 +36,9 @@ from .sensors import (
 
 _LOGGER = logging.getLogger(__name__)
 
+# Values come from the coordinator; nothing to limit.
+PARALLEL_UPDATES = 0
+
 DEVICE_GROUP_NAMES = {
     WeishauptDeviceGroup.SG: "Systemgerät",
     WeishauptDeviceGroup.WTC: "WTC Kessel",

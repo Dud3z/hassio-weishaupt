@@ -22,6 +22,9 @@ from .sensors import ALL_SENSORS, WeishauptDeviceGroup, WeishauptSensorDefinitio
 
 _LOGGER = logging.getLogger(__name__)
 
+# One write at a time; the client also allows only one per minute.
+PARALLEL_UPDATES = 1
+
 
 async def async_setup_entry(
     hass: HomeAssistant,

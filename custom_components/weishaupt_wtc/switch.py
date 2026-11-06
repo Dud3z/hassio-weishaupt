@@ -22,6 +22,9 @@ from .sensors import ALL_SENSORS, WeishauptDeviceGroup, WeishauptSensorDefinitio
 
 _LOGGER = logging.getLogger(__name__)
 
+# One write at a time; the client also allows only one per minute.
+PARALLEL_UPDATES = 1
+
 SWITCH_KEY = "sg_betriebsart_warmwasser"
 WW_EIN = 1  # Betriebsart Warmwasser values: 1 = Ein, 2 = Aus
 WW_AUS = 2

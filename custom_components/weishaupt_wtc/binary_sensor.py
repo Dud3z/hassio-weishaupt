@@ -24,6 +24,9 @@ from .sensor import _system_device_identifier
 
 FAULT_BLOCK_KEY = "sg_canopen_fehlerblock"
 
+# Values come from the coordinator; nothing to limit.
+PARALLEL_UPDATES = 0
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
