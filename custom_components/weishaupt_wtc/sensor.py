@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 import logging
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -91,7 +93,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Weishaupt WTC sensors from a config entry."""
-    coordinator: WeishauptDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator = entry.runtime_data
 
     device_registry = dr.async_get(hass)
     device_registry.async_get_or_create(
@@ -102,7 +104,7 @@ async def async_setup_entry(
         model=DEVICE_GROUP_MODELS[WeishauptDeviceGroup.SG],
     )
 
-    entities: list[WeishauptSensorEntity] = []
+    entities: list[SensorEntity] = [WeishauptConnectionSensor(coordinator, entry)]
     for sensor_def in ALL_SENSORS:
         # Skip creating a read-only sensor when a writable Select, Button or Switch exists
         if sensor_def.key in {"sg_betriebsart_hk1_vorgabe", "sg_warmwasser_push", "sg_betriebsart_warmwasser"}:
@@ -185,17 +187,10 @@ class WeishauptSensorEntity(
     def available(self) -> bool:
         """Return True if the sensor data is available."""
         if self._sensor_def.key == "sg_device_time":
-            required_keys = [
-                "sg_uhrzeit_stunden",
-                "sg_uhrzeit_minuten",
-                "sg_datum_tag",
-                "sg_datum_monat",
-                "sg_datum_jahr",
-            ]
             return (
                 super().available
                 and self.coordinator.data is not None
-                and all(key in self.coordinator.data for key in required_keys)
+                and all(key in self.coordinator.data for key in DEVICE_TIME_KEYS)
             )
 
         data_key = self._sensor_def.source_key or self._sensor_def.key
@@ -325,3 +320,57 @@ class WeishauptSensorEntity(
                         attrs.update(decode_module_attributes(module[1]))
 
         return attrs
+
+
+class WeishauptConnectionSensor(
+    CoordinatorEntity[WeishauptDataUpdateCoordinator], SensorEntity
+):
+    """Whether the device answers, and until when requests are paused if not."""
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "verbindung"
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = ["ok", "paused", "error"]
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:lan-connect"
+
+    def __init__(
+        self, coordinator: WeishauptDataUpdateCoordinator, entry: ConfigEntry
+    ) -> None:
+        """Initialize the connection status sensor."""
+        super().__init__(coordinator, context=frozenset())  # reads no register
+        self._entry = entry
+        self._attr_unique_id = f"{entry.entry_id}_verbindung"
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Attach to the Systemgerät."""
+        return DeviceInfo(identifiers={_system_device_identifier(self._entry.entry_id)})
+
+    @property
+    def available(self) -> bool:
+        """Stay available: this sensor reports the failures that make others unavailable."""
+        return True
+
+    @property
+    def native_value(self) -> str:
+        """Return ok, paused (backoff after a failed reply) or error."""
+        if self.coordinator.last_update_success:
+            return "ok"
+        if self.coordinator.client.pause_remaining > 0:
+            return "paused"
+        return "error"
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return when the pause ends and the last error."""
+        remaining = self.coordinator.client.pause_remaining
+        error = self.coordinator.last_exception
+        return {
+            "paused_until": (
+                (datetime.now(UTC) + timedelta(seconds=remaining)).isoformat(timespec="seconds")
+                if remaining > 0
+                else None
+            ),
+            "last_error": None if self.coordinator.last_update_success or error is None else str(error),
+        }

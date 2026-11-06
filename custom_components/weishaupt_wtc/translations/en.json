@@ -14,6 +14,14 @@
             "reconfigure": {
                 "title": "Re-detect optional modules",
                 "description": "Probes HC2, HC3 and Solar once and stores the result. Only run this while the device responds normally: probes to absent modules use up its limited request slots, and a locked device only recovers after power-off."
+            },
+            "reauth_confirm": {
+                "title": "Re-enter credentials",
+                "description": "The Weishaupt device at {host} rejected the stored username or password.",
+                "data": {
+                    "username": "Username",
+                    "password": "Password"
+                }
             }
         },
         "error": {
@@ -22,7 +30,8 @@
             "unknown": "An unexpected error occurred."
         },
         "abort": {
-            "already_configured": "This device is already configured."
+            "already_configured": "This device is already configured.",
+            "reauth_successful": "Credentials updated."
         }
     },
     "entity": {
@@ -304,6 +313,14 @@
             },
             "sol_solarertrag_vortag": {
                 "name": "Solar Yield Previous Day"
+            },
+            "verbindung": {
+                "name": "Connection",
+                "state": {
+                    "ok": "OK",
+                    "paused": "Paused after failed replies",
+                    "error": "Error"
+                }
             }
         },
         "button": {
@@ -314,6 +331,22 @@
         "switch": {
             "sg_betriebsart_warmwasser": {
                 "name": "DHW On/Off"
+            }
+        },
+        "binary_sensor": {
+            "sg_stoerung": {
+                "name": "Fault"
+            }
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Weishaupt WTC options",
+                "description": "Registers are still read no more often than their Weishaupt update class allows (30 s, 60 s or 10 min).",
+                "data": {
+                    "scan_interval": "Scan interval (seconds)"
+                }
             }
         }
     }

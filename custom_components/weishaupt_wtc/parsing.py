@@ -35,6 +35,11 @@ def decode_fault_status(raw_value: int) -> str:
     return "Keine Meldung"
 
 
+def is_fault(raw_value: int) -> bool:
+    """Return True when register 121 reports an error; warnings and infos are not."""
+    return decode_fault_status(raw_value) in ("Fehler", "Fehler aktiv")
+
+
 def decode_fault_status_attributes(raw_value: int) -> dict[str, Any]:
     """Decode fault status details from register 121."""
     return {

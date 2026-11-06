@@ -8,10 +8,17 @@ from collections.abc import Callable, Iterable
 from datetime import timedelta
 from typing import Any
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .api import WeishauptApiClient, WeishauptApiError, WeishauptConnectionError
+from .api import (
+    WeishauptApiClient,
+    WeishauptApiError,
+    WeishauptAuthError,
+    WeishauptConnectionError,
+)
 from .const import DOMAIN
 from .sensors import (
     OPTIONAL_GROUPS,
@@ -21,6 +28,8 @@ from .sensors import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+type WeishauptConfigEntry = ConfigEntry[WeishauptDataUpdateCoordinator]
 
 
 class WeishauptDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -124,6 +133,8 @@ class WeishauptDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         try:
             results, answered = await self.client.read_parameters_with_status(params)
+        except WeishauptAuthError as err:
+            raise ConfigEntryAuthFailed(str(err)) from err  # HA asks for new credentials
         except WeishauptApiError as err:
             # Next poll once the client's backoff pause is over, not every scan interval.
             self.update_interval = max(

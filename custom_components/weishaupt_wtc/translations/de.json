@@ -14,6 +14,14 @@
             "reconfigure": {
                 "title": "Optionale Module neu erkennen",
                 "description": "Fragt einmal Heizkreis 2, Heizkreis 3 und Solar ab und speichert das Ergebnis. Nur ausführen, wenn das Gerät normal antwortet: Anfragen an fehlende Module verbrauchen die begrenzten Anfrageplätze des Geräts, und ein gesperrtes Gerät erholt sich erst nach dem Stromlos-Machen."
+            },
+            "reauth_confirm": {
+                "title": "Zugangsdaten erneut eingeben",
+                "description": "Das Weishaupt-Gerät unter {host} hat den gespeicherten Benutzernamen oder das Passwort abgelehnt.",
+                "data": {
+                    "username": "Benutzername",
+                    "password": "Passwort"
+                }
             }
         },
         "error": {
@@ -22,7 +30,8 @@
             "unknown": "Ein unerwarteter Fehler ist aufgetreten."
         },
         "abort": {
-            "already_configured": "Dieses Gerät ist bereits konfiguriert."
+            "already_configured": "Dieses Gerät ist bereits konfiguriert.",
+            "reauth_successful": "Zugangsdaten aktualisiert."
         }
     },
     "entity": {
@@ -304,6 +313,14 @@
             },
             "sol_solarertrag_vortag": {
                 "name": "Solarertrag Vortag"
+            },
+            "verbindung": {
+                "name": "Verbindung",
+                "state": {
+                    "ok": "OK",
+                    "paused": "Pausiert nach fehlerhaften Antworten",
+                    "error": "Fehler"
+                }
             }
         },
         "button": {
@@ -314,6 +331,22 @@
         "switch": {
             "sg_betriebsart_warmwasser": {
                 "name": "Warmwasser Ein/Aus"
+            }
+        },
+        "binary_sensor": {
+            "sg_stoerung": {
+                "name": "Störung"
+            }
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Weishaupt WTC Optionen",
+                "description": "Register werden weiterhin höchstens so oft gelesen, wie ihre Weishaupt-Aktualisierungsklasse erlaubt (30 s, 60 s oder 10 min).",
+                "data": {
+                    "scan_interval": "Abfrageintervall (Sekunden)"
+                }
             }
         }
     }

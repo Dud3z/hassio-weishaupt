@@ -4,23 +4,28 @@ from __future__ import annotations
 
 import logging
 
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import WeishauptApiClient
-from .const import CONF_DETECTED_GROUPS, CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL, DOMAIN
-from .coordinator import WeishauptDataUpdateCoordinator
+from .const import CONF_DETECTED_GROUPS, CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
+from .coordinator import WeishauptConfigEntry, WeishauptDataUpdateCoordinator
 from .sensors import WeishauptDeviceGroup
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.SELECT, Platform.BUTTON, Platform.SWITCH]
+PLATFORMS: list[Platform] = [
+    Platform.SENSOR,
+    Platform.BINARY_SENSOR,
+    Platform.SELECT,
+    Platform.BUTTON,
+    Platform.SWITCH,
+]
 
 
 def _store_detected_groups(
-    hass: HomeAssistant, entry: ConfigEntry, groups: set[WeishauptDeviceGroup]
+    hass: HomeAssistant, entry: WeishauptConfigEntry, groups: set[WeishauptDeviceGroup]
 ) -> None:
     """Persist detected optional groups so restarts and reloads don't probe again."""
     hass.config_entries.async_update_entry(
@@ -29,12 +34,15 @@ def _store_detected_groups(
     )
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_setup_entry(hass: HomeAssistant, entry: WeishauptConfigEntry) -> bool:
     """Set up Weishaupt WTC from a config entry."""
     host = entry.data[CONF_HOST]
     username = entry.data[CONF_USERNAME]
     password = entry.data[CONF_PASSWORD]
-    scan_interval = entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+    # The options flow overrides the scan interval chosen during setup.
+    scan_interval = entry.options.get(
+        CONF_SCAN_INTERVAL, entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+    )
 
     session = async_get_clientsession(hass)
     client = WeishauptApiClient(
@@ -58,17 +66,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # shortcut: a failed first refresh is retried by HA's setup retry with a fresh client, so the backoff pause does not carry over (one request per retry), upgrade to reusing the client across setup retries if the WEM locks up during startup
     await coordinator.async_config_entry_first_refresh()
 
-    hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = coordinator
+    entry.runtime_data = coordinator
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: WeishauptConfigEntry) -> bool:
     """Unload a config entry."""
-    if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
-        hass.data[DOMAIN].pop(entry.entry_id)
-
-    return unload_ok
+    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

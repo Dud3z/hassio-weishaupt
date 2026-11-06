@@ -150,13 +150,37 @@ class _FlowBase:
 
 
 class ConfigFlow(_FlowBase):
+    """Config flow stand-in; tests set hass and the entry being reauthenticated."""
+
+    hass = None
+    reauth_entry: ConfigEntry | None = None
+
     def __init_subclass__(cls, domain=None, **kwargs):
         super().__init_subclass__(**kwargs)
         cls.domain = domain
 
+    async def async_set_unique_id(self, unique_id):
+        self.unique_id = unique_id
+
+    def _abort_if_unique_id_configured(self) -> None:
+        """Nothing is configured in tests."""
+
+    def _get_reauth_entry(self) -> ConfigEntry:
+        return self.reauth_entry
+
+    def async_update_reload_and_abort(self, entry, *, data_updates=None, **kwargs):
+        entry.data.update(data_updates or {})
+        return {"type": "abort", "reason": "reauth_successful"}
+
 
 class OptionsFlow(_FlowBase):
-    pass
+    """Options flow stand-in; tests set config_entry."""
+
+    config_entry: ConfigEntry | None = None
+
+
+class OptionsFlowWithReload(OptionsFlow):
+    automatic_reload = True
 
 
 class HomeAssistantError(Exception):
@@ -214,6 +238,7 @@ def _install() -> None:
         ConfigEntry=ConfigEntry,
         ConfigFlow=ConfigFlow,
         OptionsFlow=OptionsFlow,
+        OptionsFlowWithReload=OptionsFlowWithReload,
         ConfigFlowResult=dict,
     )
     _module("homeassistant.core", HomeAssistant=object, callback=lambda func: func)

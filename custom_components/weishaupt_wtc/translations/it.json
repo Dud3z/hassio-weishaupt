@@ -14,6 +14,14 @@
             "reconfigure": {
                 "title": "Riconosci di nuovo i moduli opzionali",
                 "description": "Verifica una volta CR2, CR3 e Solare e salva il risultato. Eseguire solo se il dispositivo risponde normalmente: le richieste a moduli assenti consumano i posti limitati del dispositivo, che si sblocca solo dopo lo spegnimento."
+            },
+            "reauth_confirm": {
+                "title": "Inserire di nuovo le credenziali",
+                "description": "Il dispositivo Weishaupt su {host} ha rifiutato il nome utente o la password salvati.",
+                "data": {
+                    "username": "Nome utente",
+                    "password": "Password"
+                }
             }
         },
         "error": {
@@ -22,7 +30,8 @@
             "unknown": "Si è verificato un errore imprevisto."
         },
         "abort": {
-            "already_configured": "Questo dispositivo è già configurato."
+            "already_configured": "Questo dispositivo è già configurato.",
+            "reauth_successful": "Credenziali aggiornate."
         }
     },
     "entity": {
@@ -304,6 +313,14 @@
             },
             "sol_solarertrag_vortag": {
                 "name": "Resa Solare Giorno Precedente"
+            },
+            "verbindung": {
+                "name": "Connessione",
+                "state": {
+                    "ok": "OK",
+                    "paused": "In pausa dopo risposte errate",
+                    "error": "Errore"
+                }
             }
         },
         "button": {
@@ -314,6 +331,22 @@
         "switch": {
             "sg_betriebsart_warmwasser": {
                 "name": "ACS On/Off"
+            }
+        },
+        "binary_sensor": {
+            "sg_stoerung": {
+                "name": "Guasto"
+            }
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "Opzioni Weishaupt WTC",
+                "description": "I registri non vengono comunque letti più spesso di quanto consentito dalla loro classe di aggiornamento Weishaupt (30 s, 60 s o 10 min).",
+                "data": {
+                    "scan_interval": "Intervallo di scansione (secondi)"
+                }
             }
         }
     }
