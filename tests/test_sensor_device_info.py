@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from types import SimpleNamespace
 import unittest
-from unittest.mock import AsyncMock, call
+from unittest.mock import AsyncMock, Mock, call
 from zoneinfo import ZoneInfo
 from pathlib import Path
 import sys
@@ -187,6 +187,22 @@ class SensorDeviceInfoTests(unittest.TestCase):
         self.assertEqual(entity.device_info["name"], "Weishaupt Heizkreis 2")
 
 
+class EntityContextTests(unittest.TestCase):
+    """Entities tell the coordinator which registers they read."""
+
+    def test_sensor_context_lists_the_registers_it_reads(self) -> None:
+        by_key = {d.key: d for d in sensors.ALL_SENSORS}
+        coordinator = SimpleNamespace(data={})
+        entry = SimpleNamespace(entry_id="entry-123")
+
+        def context(key):
+            return sensor.WeishauptSensorEntity(coordinator, by_key[key], entry).coordinator_context
+
+        self.assertEqual(context("wtc_kesseltemperatur"), {"wtc_kesseltemperatur"})
+        self.assertEqual(context("sg_device_time"), set(sensors.DEVICE_TIME_KEYS))
+        self.assertEqual(context("sg_fehlernummer"), {"sg_canopen_fehlerblock"})
+
+
 class WarmwasserSwitchTests(unittest.IsolatedAsyncioTestCase):
     """Test the Warmwasser on/off switch (WW0 object 0x2520: 1 Ein, 2 Aus)."""
 
@@ -195,6 +211,7 @@ class WarmwasserSwitchTests(unittest.IsolatedAsyncioTestCase):
             data={},
             client=SimpleNamespace(write_parameter=AsyncMock(return_value=True)),
             async_request_refresh=AsyncMock(),
+            invalidate=Mock(),
         )
         sensor_def = next(
             d for d in sensors.SG_SENSORS if d.key == "sg_betriebsart_warmwasser"
@@ -226,6 +243,8 @@ class WarmwasserSwitchTests(unittest.IsolatedAsyncioTestCase):
             ]
         )
         self.assertEqual(self.coordinator.async_request_refresh.await_count, 2)
+        # The written register is read back right away, not when its class is due.
+        self.coordinator.invalidate.assert_called_with({"sg_betriebsart_warmwasser"})
 
     async def test_failed_write_is_logged_not_raised(self) -> None:
         """A failing client must not raise into HA; state is still refreshed."""

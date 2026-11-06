@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+import time
+from collections.abc import Callable, Iterable
 from datetime import timedelta
 from typing import Any
 
@@ -47,6 +48,36 @@ class WeishauptDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # shortcut: a module removed after detection stays polled until Reconfigure re-detects, upgrade to dropping groups after repeated CMD_ERROR
         self.active_groups = active_groups
         self._on_groups_detected = on_groups_detected
+        # When each register was last read (time.monotonic), for its poll_interval.
+        self._last_read: dict[str, float] = {}
+
+    def invalidate(self, keys: Iterable[str]) -> None:
+        """Read these registers on the next refresh, e.g. right after a write."""
+        for key in keys:
+            self._last_read.pop(key, None)
+
+    def _wanted_keys(self) -> set[str] | None:
+        """Registers the added entities read; None = no entity added yet, read all.
+
+        Each entity passes the keys it reads as its coordinator context. Disabled
+        entities are never added, so their registers are not polled.
+        """
+        wanted: set[str] = set()
+        has_listener = False
+        for context in self.async_contexts():
+            has_listener = True
+            if context:
+                wanted.update(context)
+        return wanted if has_listener else None
+
+    def _is_due(self, sensor_def: WeishauptSensorDefinition, now: float) -> bool:
+        last = self._last_read.get(sensor_def.key)
+        if last is None:
+            return True
+        # Half a scan interval of slack, so a 60 s register is read on every
+        # second 30 s tick instead of slipping to the third one.
+        slack = self._scan_interval.total_seconds() / 2
+        return now - last >= sensor_def.poll_interval - slack
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch data from the Weishaupt device."""
@@ -63,6 +94,8 @@ class WeishauptDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 if sensor_def.group not in OPTIONAL_GROUPS
             ] + list(optional_probes.values())
 
+        now = time.monotonic()
+        wanted = None if detecting else self._wanted_keys()
         params = []
         for sensor_def in sensor_definitions:
             if (
@@ -70,6 +103,10 @@ class WeishauptDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 and sensor_def.group in OPTIONAL_GROUPS
                 and sensor_def.group not in self.active_groups
             ):
+                continue
+            if wanted is not None and sensor_def.key not in wanted:
+                continue
+            if not self._is_due(sensor_def, now):
                 continue
             params.append(
                 {
@@ -81,6 +118,9 @@ class WeishauptDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     "vs": sensor_def.vs,
                 }
             )
+
+        if not params:
+            return dict(self.data or {})
 
         try:
             results, answered = await self.client.read_parameters_with_status(params)
@@ -97,7 +137,14 @@ class WeishauptDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if detecting:
             self._finish_detection(optional_probes, results, answered)
 
-        return results
+        # Keep the values of registers that were not due; drop those that were
+        # read but returned nothing, so their entities show unknown, not stale.
+        data = dict(self.data or {})
+        for param in params:
+            self._last_read[param["key"]] = now
+            data.pop(param["key"], None)
+        data.update(results)
+        return data
 
     def _finish_detection(
         self,

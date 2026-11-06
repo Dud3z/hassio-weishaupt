@@ -92,7 +92,8 @@ class DataUpdateCoordinator(_Generic):
         self._contexts: list = []
 
     def async_contexts(self):
-        return iter(self._contexts)
+        # Like Home Assistant: listeners registered without a context are skipped.
+        return (context for context in self._contexts if context is not None)
 
 
 class CoordinatorEntity(_Generic):

@@ -59,7 +59,7 @@ class WeishauptButtonEntity(CoordinatorEntity, ButtonEntity):
         sensor_def: WeishauptSensorDefinition,
         entry: ConfigEntry,
     ) -> None:
-        super().__init__(coordinator)
+        super().__init__(coordinator, context=frozenset())  # shows no register value
         self._sensor_def = sensor_def
         self._entry = entry
 

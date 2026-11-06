@@ -61,7 +61,7 @@ class WeishauptWarmwasserSwitch(CoordinatorEntity, SwitchEntity):
         sensor_def: WeishauptSensorDefinition,
         entry: ConfigEntry,
     ) -> None:
-        super().__init__(coordinator)
+        super().__init__(coordinator, context=frozenset({sensor_def.key}))
         self._sensor_def = sensor_def
         self._entry = entry
 
@@ -109,6 +109,7 @@ class WeishauptWarmwasserSwitch(CoordinatorEntity, SwitchEntity):
             _LOGGER.error("Failed to write %s=%s: %s", self._sensor_def.key, value, err)
         # Read back even after a failed write: a write can apply despite an empty reply.
         # After an empty reply the client pauses, so the read-back waits for the pause.
+        self.coordinator.invalidate({self._sensor_def.key})
         await self.coordinator.async_request_refresh()
 
     async def async_turn_on(self, **kwargs: Any) -> None:

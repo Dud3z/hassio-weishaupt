@@ -38,6 +38,15 @@ class WeishauptDeviceGroup(StrEnum):
     RF = "rf"  # Raumfühler (Room sensor)
 
 
+# Minimum seconds between two reads of a register, from the update class Weishaupt
+# assigns each register in its register table ("Aktualisierung" s/m/l, also used
+# by the WEM-Modbus gateway). Registers missing from the table use the class of
+# comparable registers. Fewer requests keep the WEM's JSON interface healthy.
+POLL_FAST = 30  # s: temperatures, burner phase, output
+POLL_MEDIUM = 60  # m: setpoints, operating modes, pressure
+POLL_SLOW = 600  # l: daily and total counters
+
+
 @dataclass
 class WeishauptSensorDefinition:
     """Definition of a single Weishaupt sensor."""
@@ -65,6 +74,7 @@ class WeishauptSensorDefinition:
     byte_offset: int = 0  # Byte offset within the source value_hex for derived sensors
     byte_length: int | None = None  # Number of bytes to read from the source value_hex
     entity_registry_enabled_default: bool | None = None  # Override default enabled state; None = use category default
+    poll_interval: int = POLL_MEDIUM  # Minimum seconds between reads: POLL_FAST, POLL_MEDIUM or POLL_SLOW
 
 
 # ============================================================================
@@ -370,6 +380,7 @@ SG_SENSORS: list[WeishauptSensorDefinition] = [
         vs=2,
         group=WeishauptDeviceGroup.SG,
         modbus_reg="113",
+        poll_interval=POLL_FAST,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
         unit=UnitOfTemperature.CELSIUS,
@@ -386,6 +397,7 @@ SG_SENSORS: list[WeishauptSensorDefinition] = [
         vs=2,
         group=WeishauptDeviceGroup.SG,
         modbus_reg="114",
+        poll_interval=POLL_FAST,
         icon="mdi:percent",
         unit=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
@@ -417,6 +429,7 @@ SG_SENSORS: list[WeishauptSensorDefinition] = [
         vs=2,
         group=WeishauptDeviceGroup.SG,
         modbus_reg="116",
+        poll_interval=POLL_FAST,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
         unit=UnitOfTemperature.CELSIUS,
@@ -433,6 +446,7 @@ SG_SENSORS: list[WeishauptSensorDefinition] = [
         vs=2,
         group=WeishauptDeviceGroup.SG,
         modbus_reg="117",
+        poll_interval=POLL_FAST,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
         unit=UnitOfTemperature.CELSIUS,
@@ -578,6 +592,7 @@ SG_SENSORS: list[WeishauptSensorDefinition] = [
         vs=2,
         group=WeishauptDeviceGroup.SG,
         modbus_reg="126",
+        poll_interval=POLL_FAST,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
         unit=UnitOfTemperature.CELSIUS,
@@ -594,6 +609,7 @@ SG_SENSORS: list[WeishauptSensorDefinition] = [
         vs=2,
         group=WeishauptDeviceGroup.SG,
         modbus_reg="127",
+        poll_interval=POLL_FAST,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
         unit=UnitOfTemperature.CELSIUS,
@@ -624,6 +640,7 @@ SG_SENSORS: list[WeishauptSensorDefinition] = [
         vs=1,
         group=WeishauptDeviceGroup.SG,
         modbus_reg="131",
+        poll_interval=POLL_FAST,
         icon="mdi:water-boiler-alert",
         value_map=PUMPE_MAP,
     ),
@@ -698,6 +715,7 @@ SG_SENSORS: list[WeishauptSensorDefinition] = [
         vs=2,
         group=WeishauptDeviceGroup.SG,
         modbus_reg="135",
+        poll_interval=POLL_FAST,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
         unit=UnitOfTemperature.CELSIUS,
@@ -730,6 +748,7 @@ SG_SENSORS: list[WeishauptSensorDefinition] = [
         vs=1,
         group=WeishauptDeviceGroup.SG,
         modbus_reg="137",
+        poll_interval=POLL_FAST,
         icon="mdi:pump",
         value_map=PUMPE_MAP,
     ),
@@ -744,6 +763,7 @@ SG_SENSORS: list[WeishauptSensorDefinition] = [
         vs=1,
         group=WeishauptDeviceGroup.SG,
         modbus_reg="140",
+        poll_interval=POLL_SLOW,
         icon="mdi:swap-horizontal",
         value_map=FOLGEWECHSEL_MAP,
     ),
@@ -757,6 +777,7 @@ SG_SENSORS: list[WeishauptSensorDefinition] = [
         vs=2,
         group=WeishauptDeviceGroup.SG,
         modbus_reg="141",
+        poll_interval=POLL_SLOW,
         icon="mdi:timer",
         unit=UnitOfTime.HOURS,
         state_class=SensorStateClass.MEASUREMENT,
@@ -771,6 +792,7 @@ SG_SENSORS: list[WeishauptSensorDefinition] = [
         vs=2,
         group=WeishauptDeviceGroup.SG,
         modbus_reg="142",
+        poll_interval=POLL_FAST,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
         unit=UnitOfTemperature.CELSIUS,
@@ -849,6 +871,7 @@ SG_SENSORS: list[WeishauptSensorDefinition] = [
         vs=1,
         group=WeishauptDeviceGroup.SG,
         modbus_reg="150",
+        poll_interval=POLL_FAST,
         icon="mdi:clock-outline",
         entity_category="diagnostic",
     ),
@@ -862,6 +885,7 @@ SG_SENSORS: list[WeishauptSensorDefinition] = [
         vs=1,
         group=WeishauptDeviceGroup.SG,
         modbus_reg="151",
+        poll_interval=POLL_FAST,
         icon="mdi:clock-outline",
         entity_category="diagnostic",
     ),
@@ -937,6 +961,7 @@ WTC_SENSORS: list[WeishauptSensorDefinition] = [
         vs=1,
         group=WeishauptDeviceGroup.WTC,
         modbus_reg="160",
+        poll_interval=POLL_FAST,
         icon="mdi:fire",
         value_map=BETRIEBSPHASE_WTC_MAP,
     ),
@@ -950,6 +975,7 @@ WTC_SENSORS: list[WeishauptSensorDefinition] = [
         vs=1,
         group=WeishauptDeviceGroup.WTC,
         modbus_reg="161",
+        poll_interval=POLL_FAST,
         icon="mdi:fire",
         value_map=BETRIEBSPHASE_BRENNER_MAP,
     ),
@@ -965,6 +991,7 @@ WTC_SENSORS: list[WeishauptSensorDefinition] = [
         vs=2,
         group=WeishauptDeviceGroup.WTC,
         modbus_reg="",
+        poll_interval=POLL_FAST,
         icon="mdi:gauge",
         unit=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
@@ -997,6 +1024,7 @@ WTC_SENSORS: list[WeishauptSensorDefinition] = [
         vs=2,
         group=WeishauptDeviceGroup.WTC,
         modbus_reg="164",
+        poll_interval=POLL_FAST,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
         unit=UnitOfTemperature.CELSIUS,
@@ -1042,6 +1070,7 @@ WTC_SENSORS: list[WeishauptSensorDefinition] = [
         vs=2,
         group=WeishauptDeviceGroup.WTC,
         modbus_reg="167",
+        poll_interval=POLL_FAST,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
         unit=UnitOfTemperature.CELSIUS,
@@ -1058,6 +1087,7 @@ WTC_SENSORS: list[WeishauptSensorDefinition] = [
         vs=2,
         group=WeishauptDeviceGroup.WTC,
         modbus_reg="168",
+        poll_interval=POLL_FAST,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
         unit=UnitOfTemperature.CELSIUS,
@@ -1089,6 +1119,7 @@ WTC_SENSORS: list[WeishauptSensorDefinition] = [
         vs=4,
         group=WeishauptDeviceGroup.WTC,
         modbus_reg="172_173",
+        poll_interval=POLL_SLOW,
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL,
         unit=UnitOfEnergy.KILO_WATT_HOUR,
@@ -1104,6 +1135,7 @@ WTC_SENSORS: list[WeishauptSensorDefinition] = [
         vs=4,
         group=WeishauptDeviceGroup.WTC,
         modbus_reg="174_175",
+        poll_interval=POLL_SLOW,
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL,
         unit=UnitOfEnergy.KILO_WATT_HOUR,
@@ -1119,6 +1151,7 @@ WTC_SENSORS: list[WeishauptSensorDefinition] = [
         vs=4,
         group=WeishauptDeviceGroup.WTC,
         modbus_reg="176_177",
+        poll_interval=POLL_SLOW,
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL,
         unit=UnitOfEnergy.KILO_WATT_HOUR,
@@ -1306,6 +1339,7 @@ HK_SENSORS: list[WeishauptSensorDefinition] = [
         vs=2,
         group=WeishauptDeviceGroup.HK,
         modbus_reg="1043",
+        poll_interval=POLL_FAST,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
         unit=UnitOfTemperature.CELSIUS,
@@ -1338,6 +1372,7 @@ HK_SENSORS: list[WeishauptSensorDefinition] = [
         vs=2,
         group=WeishauptDeviceGroup.HK,
         modbus_reg="1046",
+        poll_interval=POLL_FAST,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
         unit=UnitOfTemperature.CELSIUS,
@@ -1532,6 +1567,7 @@ HK3_SENSORS: list[WeishauptSensorDefinition] = [
         vs=2,
         group=WeishauptDeviceGroup.HK3,
         modbus_reg="",
+        poll_interval=POLL_FAST,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
         unit=UnitOfTemperature.CELSIUS,
@@ -1564,6 +1600,7 @@ HK3_SENSORS: list[WeishauptSensorDefinition] = [
         vs=2,
         group=WeishauptDeviceGroup.HK3,
         modbus_reg="",
+        poll_interval=POLL_FAST,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
         unit=UnitOfTemperature.CELSIUS,
@@ -1588,6 +1625,7 @@ SOL_SENSORS: list[WeishauptSensorDefinition] = [
         vs=2,
         group=WeishauptDeviceGroup.SOL,
         modbus_reg="20",
+        poll_interval=POLL_FAST,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
         unit=UnitOfTemperature.CELSIUS,
@@ -1620,6 +1658,7 @@ SOL_SENSORS: list[WeishauptSensorDefinition] = [
         vs=4,
         group=WeishauptDeviceGroup.SOL,
         modbus_reg="22_23",
+        poll_interval=POLL_SLOW,
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL_INCREASING,
         unit=UnitOfEnergy.KILO_WATT_HOUR,
@@ -1650,6 +1689,7 @@ SOL_SENSORS: list[WeishauptSensorDefinition] = [
         vs=4,
         group=WeishauptDeviceGroup.SOL,
         modbus_reg="26_27",
+        poll_interval=POLL_SLOW,
         device_class=SensorDeviceClass.ENERGY,
         state_class=SensorStateClass.TOTAL,
         unit=UnitOfEnergy.KILO_WATT_HOUR,
@@ -1669,6 +1709,24 @@ ALL_SENSORS: list[WeishauptSensorDefinition] = (
 POLLED_SENSORS: list[WeishauptSensorDefinition] = [
     sensor for sensor in ALL_SENSORS if sensor.poll
 ]
+
+# Registers the consolidated "Uhrzeit / Datum" sensor is built from.
+DEVICE_TIME_KEYS: tuple[str, ...] = (
+    "sg_uhrzeit_stunden",
+    "sg_uhrzeit_minuten",
+    "sg_datum_tag",
+    "sg_datum_monat",
+    "sg_datum_jahr",
+)
+
+
+def polled_keys_for(sensor_def: WeishauptSensorDefinition) -> frozenset[str]:
+    """Return the keys of the polled registers an entity for sensor_def reads."""
+    if sensor_def.key == "sg_device_time":
+        return frozenset(DEVICE_TIME_KEYS)
+    if sensor_def.source_key is not None:
+        return frozenset({sensor_def.source_key})
+    return frozenset({sensor_def.key})
 
 # Device groups backed by an optional expansion module. These are only
 # created/polled once the coordinator has observed at least one response for

@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import timedelta
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 import sys
 
@@ -66,6 +67,7 @@ class CoordinatorOptionalGroupDetectionTests(unittest.IsolatedAsyncioTestCase):
             3,
         )
 
+        coordinator._last_read.clear()  # every register is due again
         await coordinator._async_update_data()
 
         second_call_keys = {param["key"] for param in client.calls[1]}
@@ -182,6 +184,92 @@ class CoordinatorBackoffTests(unittest.IsolatedAsyncioTestCase):
 
         await coordinator._async_update_data()
         self.assertEqual(coordinator.update_interval, timedelta(seconds=30))
+
+
+class RecordingClient:
+    """Answers every requested register with value 0 and records the keys."""
+
+    def __init__(self) -> None:
+        self.calls: list[set[str]] = []
+
+    async def read_parameters_with_status(self, params: list[dict]) -> tuple[dict, set]:
+        keys = {param["key"] for param in params}
+        self.calls.append(keys)
+        return {key: {"value_int": 0} for key in keys}, keys
+
+
+def make_coordinator(client) -> coordinator_module.WeishauptDataUpdateCoordinator:
+    return coordinator_module.WeishauptDataUpdateCoordinator(
+        hass=SimpleNamespace(), client=client, scan_interval=30, active_groups=set()
+    )
+
+
+class CoordinatorPollIntervalTests(unittest.IsolatedAsyncioTestCase):
+    """Registers are read no more often than their Weishaupt update class allows."""
+
+    async def asyncSetUp(self) -> None:
+        self.client = RecordingClient()
+        self.coordinator = make_coordinator(self.client)
+        self.now = 1000.0
+        patcher = patch.object(coordinator_module.time, "monotonic", lambda: self.now)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    async def poll_at(self, seconds: float) -> set[str]:
+        self.now = 1000.0 + seconds
+        self.coordinator.data = await self.coordinator._async_update_data()
+        return self.client.calls[-1] if self.client.calls else set()
+
+    async def test_fast_medium_and_slow_registers_follow_their_class(self) -> None:
+        fast, medium, slow = "wtc_kesseltemperatur", "wtc_anlagendruck", "wtc_tageswaermemenge_vortag_gesamt"
+
+        first = await self.poll_at(0)
+        self.assertTrue({fast, medium, slow} <= first)
+
+        at_30 = await self.poll_at(30)
+        self.assertIn(fast, at_30)
+        self.assertNotIn(medium, at_30)
+        self.assertNotIn(slow, at_30)
+
+        at_60 = await self.poll_at(60)
+        self.assertTrue({fast, medium} <= at_60)
+        self.assertNotIn(slow, at_60)
+
+        at_600 = await self.poll_at(600)
+        self.assertIn(slow, at_600)
+
+    async def test_values_of_registers_not_due_are_kept(self) -> None:
+        await self.poll_at(0)
+        await self.poll_at(30)
+
+        self.assertIn("wtc_anlagendruck", self.coordinator.data)
+        self.assertLess(len(self.client.calls[1]), len(self.client.calls[0]))
+
+    async def test_invalidated_register_is_read_on_the_next_refresh(self) -> None:
+        await self.poll_at(0)
+        self.coordinator.invalidate({"sg_betriebsart_warmwasser"})
+
+        self.assertIn("sg_betriebsart_warmwasser", await self.poll_at(1))
+
+    async def test_only_registers_of_added_entities_are_read(self) -> None:
+        self.coordinator._contexts = [
+            frozenset({"wtc_kesseltemperatur"}),
+            frozenset(sensors.DEVICE_TIME_KEYS),
+            None,  # an entity that reads no register
+        ]
+
+        keys = await self.poll_at(0)
+
+        self.assertEqual(keys, {"wtc_kesseltemperatur", *sensors.DEVICE_TIME_KEYS})
+
+    async def test_nothing_due_sends_no_request(self) -> None:
+        self.coordinator._contexts = [frozenset({"wtc_anlagendruck"})]
+        await self.poll_at(0)
+
+        await self.poll_at(30)
+
+        self.assertEqual(len(self.client.calls), 1)
+        self.assertIn("wtc_anlagendruck", self.coordinator.data)
 
 
 if __name__ == "__main__":

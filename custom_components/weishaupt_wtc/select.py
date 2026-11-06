@@ -59,7 +59,7 @@ class WeishauptSelectEntity(CoordinatorEntity, SelectEntity):
         sensor_def: WeishauptSensorDefinition,
         entry: ConfigEntry,
     ) -> None:
-        super().__init__(coordinator)
+        super().__init__(coordinator, context=frozenset({sensor_def.key}))
         self._sensor_def = sensor_def
         self._entry = entry
 
@@ -140,6 +140,7 @@ class WeishauptSelectEntity(CoordinatorEntity, SelectEntity):
 
         if success:
             # Refresh coordinator data to reflect the new state
+            self.coordinator.invalidate({self._sensor_def.key})
             await self.coordinator.async_request_refresh()
         else:
             _LOGGER.debug("Write reported unsuccessful for %s", self._sensor_def.key)

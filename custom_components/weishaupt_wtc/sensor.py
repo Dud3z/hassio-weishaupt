@@ -23,7 +23,14 @@ from .parsing import (
     decode_module_attributes,
     extract_value_segment,
 )
-from .sensors import ALL_SENSORS, OPTIONAL_GROUPS, WeishauptDeviceGroup, WeishauptSensorDefinition
+from .sensors import (
+    ALL_SENSORS,
+    DEVICE_TIME_KEYS,
+    OPTIONAL_GROUPS,
+    WeishauptDeviceGroup,
+    WeishauptSensorDefinition,
+    polled_keys_for,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -128,7 +135,8 @@ class WeishauptSensorEntity(
         entry: ConfigEntry,
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(coordinator)
+        # The context tells the coordinator which registers this entity reads.
+        super().__init__(coordinator, context=polled_keys_for(sensor_def))
         self._sensor_def = sensor_def
         self._entry = entry
 
@@ -212,15 +220,8 @@ class WeishauptSensorEntity(
 
         # Special handling for the consolidated device time sensor
         if sensor_def.key == "sg_device_time":
-            required_keys = [
-                "sg_uhrzeit_stunden",
-                "sg_uhrzeit_minuten",
-                "sg_datum_tag",
-                "sg_datum_monat",
-                "sg_datum_jahr",
-            ]
             vals: dict[str, int] = {}
-            for k in required_keys:
+            for k in DEVICE_TIME_KEYS:
                 d = self.coordinator.data.get(k)
                 if not d:
                     return None
