@@ -11,10 +11,12 @@ from typing import Any
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from .api import WeishauptRequestBlockedError
 from .const import DOMAIN
 from .sensor import DEVICE_GROUP_MODELS, DEVICE_GROUP_NAMES, _device_identifier, _is_group_active, _via_device_id
 from .sensors import ALL_SENSORS, WeishauptDeviceGroup, WeishauptSensorDefinition
@@ -101,10 +103,12 @@ class WeishauptWarmwasserSwitch(CoordinatorEntity, SwitchEntity):
                 vs=self._sensor_def.vs,
                 value_int=value,
             )
+        except WeishauptRequestBlockedError as err:
+            raise HomeAssistantError(str(err)) from err  # nothing was sent
         except Exception as err:  # catch client errors
             _LOGGER.error("Failed to write %s=%s: %s", self._sensor_def.key, value, err)
         # Read back even after a failed write: a write can apply despite an empty reply.
-        # shortcut: no 1-write-per-minute throttle (jvejmelka firmware has one), add it if the device rejects rapid toggles
+        # After an empty reply the client pauses, so the read-back waits for the pause.
         await self.coordinator.async_request_refresh()
 
     async def async_turn_on(self, **kwargs: Any) -> None:

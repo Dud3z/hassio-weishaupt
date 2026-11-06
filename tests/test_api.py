@@ -91,29 +91,119 @@ class ApiClientTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(await client.test_connection())
 
-    async def test_read_parameters_skips_empty_response(self) -> None:
-        """Batch reads should warn and skip empty responses instead of failing."""
-        client = EmptyResponseClient("wem-sg", "admin", "Admin123")
-        params = [
-            {
-                "key": "sg_betriebsart_hk1",
-                "mi": 0x02,
-                "mx": 0x00,
-                "ox": 0x2533,
-                "os": 0x02,
-                "vs": 0x01,
-            }
-        ]
 
-        with self.assertLogs(
-            "custom_components.weishaupt_wtc.api", level="WARNING"
-        ) as logs:
-            result = await client.read_parameters(params)
 
-        self.assertEqual(result, {})
-        self.assertTrue(
-            any("Empty response from device" in entry for entry in logs.output)
-        )
+READ_PARAM = {"key": "hk1", "mi": 0x02, "mx": 0x00, "ox": 0x2533, "os": 0x02, "vs": 1}
+VALUE_REPLY = {"CAPI": {"N01": {"VG": "020200253302000101"}}}  # CMD_RESPONSE, value 1
+ERROR_REPLY = {"CAPI": {"N01": {"VG": "050200253302000100"}}}  # CMD_ERROR
+WRITE_ACK = {"CAPI": {"N01": {"VG": "040300252002000101"}}}  # CMD_ACK
+
+
+class ScriptedClient(api.WeishauptApiClient):
+    """Returns (or raises) the scripted device replies in order and counts requests."""
+
+    def __init__(self, replies: list) -> None:
+        super().__init__("wem-sg", "admin", "Admin123", min_request_interval=0)
+        self._replies = list(replies)
+        self.sent = 0
+
+    async def _post_once(self, payload: dict) -> dict | None:
+        self.sent += 1
+        reply = self._replies.pop(0)
+        if isinstance(reply, Exception):
+            raise reply
+        return reply
+
+    def end_pause(self) -> None:
+        """Let the current pause run out without waiting for it."""
+        self._paused_until = time.monotonic() - 1
+
+
+class ApiClientBackoffTests(unittest.IsolatedAsyncioTestCase):
+    """A struggling device gets a growing pause instead of an immediate retry."""
+
+    async def test_empty_reply_pauses_and_blocks_without_sending(self) -> None:
+        """After an empty reply nothing is sent until the pause is over."""
+        client = ScriptedClient([None])
+
+        with self.assertLogs("custom_components.weishaupt_wtc.api", level="WARNING"):
+            with self.assertRaises(api.WeishauptEmptyResponseError):
+                await client.read_parameters([READ_PARAM])
+
+        self.assertAlmostEqual(client.pause_remaining, 120, delta=1)
+        with self.assertRaises(api.WeishauptRequestBlockedError):
+            await client.read_parameters([READ_PARAM])
+        with self.assertRaises(api.WeishauptRequestBlockedError):
+            await client.write_parameter(0x03, 0x00, 0x2520, 0x02, 1, 2)
+        self.assertEqual(client.sent, 1)
+
+    async def test_failed_batch_aborts_the_rest_of_the_poll(self) -> None:
+        """The next batch would be the immediate retry that locks the WEM."""
+        client = ScriptedClient([VALUE_REPLY, None, VALUE_REPLY])
+        params = [dict(READ_PARAM, key=f"p{i}") for i in range(14)]
+
+        with self.assertLogs("custom_components.weishaupt_wtc.api", level="WARNING"):
+            with self.assertRaises(api.WeishauptEmptyResponseError):
+                await client.read_parameters(params)
+
+        self.assertEqual(client.sent, 2)
+
+    async def test_pause_grows_per_failure_and_resets_on_success(self) -> None:
+        """2, 4, 8, 16, then 30 min; the first healthy reply ends the backoff."""
+        timeout = api.WeishauptConnectionError("timeout")
+        client = ScriptedClient([timeout] * 6 + [VALUE_REPLY, timeout])
+        pauses = []
+        with self.assertLogs("custom_components.weishaupt_wtc.api", level="WARNING"):
+            for _ in range(6):
+                with self.assertRaises(api.WeishauptConnectionError):
+                    await client.read_parameters([READ_PARAM])
+                pauses.append(round(client.pause_remaining / 60))
+                client.end_pause()
+
+            await client.read_parameters([READ_PARAM])
+            self.assertEqual(client.pause_remaining, 0)
+
+            with self.assertRaises(api.WeishauptConnectionError):
+                await client.read_parameters([READ_PARAM])
+
+        self.assertEqual(pauses, [2, 4, 8, 16, 30, 30])
+        self.assertAlmostEqual(client.pause_remaining, 120, delta=1)
+
+    async def test_error_on_every_register_pauses(self) -> None:
+        """CMD_ERROR for all registers is how a locked WEM answers."""
+        client = ScriptedClient([ERROR_REPLY])
+
+        with self.assertLogs("custom_components.weishaupt_wtc.api", level="WARNING"):
+            with self.assertRaises(api.WeishauptEmptyResponseError):
+                await client.read_parameters([READ_PARAM])
+
+        self.assertGreater(client.pause_remaining, 0)
+
+    async def test_wrong_credentials_do_not_pause(self) -> None:
+        """A 401 is a configuration problem, not a struggling device."""
+        client = ScriptedClient([api.WeishauptAuthError("401")])
+
+        with self.assertRaises(api.WeishauptAuthError):
+            await client.read_parameters([READ_PARAM])
+
+        self.assertEqual(client.pause_remaining, 0)
+
+
+class ApiClientWriteThrottleTests(unittest.IsolatedAsyncioTestCase):
+    """At most one write per MIN_WRITE_INTERVAL."""
+
+    async def test_second_write_within_a_minute_is_blocked(self) -> None:
+        """A blocked write sends nothing; after the interval the next one goes out."""
+        client = ScriptedClient([WRITE_ACK, WRITE_ACK])
+
+        self.assertTrue(await client.write_parameter(0x03, 0x00, 0x2520, 0x02, 1, 2))
+        with self.assertRaises(api.WeishauptRequestBlockedError):
+            await client.write_parameter(0x03, 0x00, 0x2520, 0x02, 1, 1)
+        self.assertEqual(client.sent, 1)
+
+        client._last_write_at -= api.MIN_WRITE_INTERVAL
+        self.assertTrue(await client.write_parameter(0x03, 0x00, 0x2520, 0x02, 1, 1))
+        self.assertEqual(client.sent, 2)
 
 
 class BatchCountingClient(api.WeishauptApiClient):
@@ -125,7 +215,7 @@ class BatchCountingClient(api.WeishauptApiClient):
 
     async def _post_once(self, payload: dict) -> dict | None:
         self.batch_sizes.append(payload["CAPI"]["NN"])
-        return None
+        return {"CAPI": {}}
 
 
 class ApiClientBatchingTests(unittest.IsolatedAsyncioTestCase):
@@ -141,7 +231,9 @@ class ApiClientBatchingTests(unittest.IsolatedAsyncioTestCase):
             for i in range(14)
         ]
 
-        await client.read_parameters(params)
+        with self.assertLogs("custom_components.weishaupt_wtc.api", level="WARNING"):
+            with self.assertRaises(api.WeishauptEmptyResponseError):
+                await client.read_parameters(params)  # no register answered
 
         self.assertEqual(client.batch_sizes, [6, 6, 2])
 

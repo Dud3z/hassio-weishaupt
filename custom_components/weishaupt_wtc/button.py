@@ -10,10 +10,12 @@ import logging
 from homeassistant.components.button import ButtonEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from .api import WeishauptRequestBlockedError
 from .const import DOMAIN
 from .sensor import DEVICE_GROUP_MODELS, DEVICE_GROUP_NAMES, _device_identifier, _is_group_active, _via_device_id
 from .sensors import ALL_SENSORS, WeishauptDeviceGroup, WeishauptSensorDefinition
@@ -92,6 +94,8 @@ class WeishauptButtonEntity(CoordinatorEntity, ButtonEntity):
                 vs=self._sensor_def.vs,
                 value_int=1,
             )
+        except WeishauptRequestBlockedError as err:
+            raise HomeAssistantError(str(err)) from err  # nothing was sent
         except Exception as err:
             _LOGGER.error(
                 "Failed to trigger %s: %s", self._sensor_def.key, err

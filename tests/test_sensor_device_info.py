@@ -86,6 +86,16 @@ core.HomeAssistant = object
 core.callback = lambda func: func
 sys.modules.setdefault("homeassistant.core", core)
 
+exceptions_module = types.ModuleType("homeassistant.exceptions")
+
+
+class HomeAssistantError(Exception):
+    """Minimal Home Assistant error stub."""
+
+
+exceptions_module.HomeAssistantError = HomeAssistantError
+sys.modules.setdefault("homeassistant.exceptions", exceptions_module)
+
 const = types.ModuleType("homeassistant.const")
 const.PERCENTAGE = "%"
 const.UnitOfEnergy = SimpleNamespace(KILO_WATT_HOUR="kWh")
@@ -178,6 +188,16 @@ load_module("custom_components.weishaupt_wtc.parsing", PACKAGE_ROOT / "parsing.p
 sensors = load_module(
     "custom_components.weishaupt_wtc.sensors", PACKAGE_ROOT / "sensors.py"
 )
+
+api_stub = types.ModuleType("custom_components.weishaupt_wtc.api")
+
+
+class WeishauptRequestBlockedError(Exception):
+    """Stub for the client's paused/throttled error."""
+
+
+api_stub.WeishauptRequestBlockedError = WeishauptRequestBlockedError
+sys.modules.setdefault("custom_components.weishaupt_wtc.api", api_stub)
 
 coordinator_module = types.ModuleType("custom_components.weishaupt_wtc.coordinator")
 
@@ -413,6 +433,17 @@ class WarmwasserSwitchTests(unittest.IsolatedAsyncioTestCase):
             await self.entity.async_turn_off()
 
         self.coordinator.async_request_refresh.assert_awaited_once()
+
+    async def test_blocked_write_is_shown_to_the_user(self) -> None:
+        """Paused or throttled: nothing was sent, so say so instead of reading back."""
+        self.coordinator.client.write_parameter.side_effect = (
+            switch.WeishauptRequestBlockedError("Wait 42 s")
+        )
+
+        with self.assertRaises(switch.HomeAssistantError):
+            await self.entity.async_turn_off()
+
+        self.coordinator.async_request_refresh.assert_not_awaited()
 
 
 if __name__ == "__main__":

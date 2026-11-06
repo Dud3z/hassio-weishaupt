@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Improvement: Pause all requests after the device fails to answer properly (empty reply, `CMD_ERROR` on every register, timeout or unreachable): 2, 4, 8, 16, then at most 30 minutes, reset by the first healthy reply. A failed request also ends the current poll instead of sending the remaining batches right away. Entities are unavailable during the pause and the next poll waits for it to end. Immediate retries have locked the WEM's JSON interface until a power cycle (findings by @jvejmelka in [weishaupt-wem-can-esphome](https://github.com/jvejmelka/weishaupt-wem-can-esphome)).
+- Improvement: Allow at most one write per minute (Betriebsart select, Warmwasser switch, Warmwasser-Push button). A write refused by this limit or during a pause sends nothing and shows an error in Home Assistant instead of failing silently.
+- Fix: The test suite now also passes when all test modules run together (`python -m unittest discover -s tests`).
+
 ## 0.3.2 - 2026-11-01
 
 - Fix: Swap the register addresses of the "WTC Abgastemperatur" (now `OX=0x2537`, `OS=0x00`) and "WTC Rücklauftemperatur" (now `OX=0x2533`, `OS=0x02`) sensors. The values were reversed compared to the boiler's display (#18, thanks @cg089). The Modbus register references are unchanged.

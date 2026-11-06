@@ -41,6 +41,7 @@ class WeishauptDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             update_interval=timedelta(seconds=scan_interval),
         )
         self.client = client
+        self._scan_interval = timedelta(seconds=scan_interval)
         # None until detection has run; then the optional groups (HK, HK3, SOL, ...)
         # that responded on this device. Restored from the config entry when stored.
         # shortcut: a module removed after detection stays polled until Reconfigure re-detects, upgrade to dropping groups after repeated CMD_ERROR
@@ -83,10 +84,15 @@ class WeishauptDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         try:
             results, answered = await self.client.read_parameters_with_status(params)
-        except WeishauptConnectionError as err:
-            raise UpdateFailed(f"Connection error: {err}") from err
         except WeishauptApiError as err:
+            # Next poll once the client's backoff pause is over, not every scan interval.
+            self.update_interval = max(
+                self._scan_interval, timedelta(seconds=self.client.pause_remaining)
+            )
+            if isinstance(err, WeishauptConnectionError):
+                raise UpdateFailed(f"Connection error: {err}") from err
             raise UpdateFailed(f"API error: {err}") from err
+        self.update_interval = self._scan_interval
 
         if detecting:
             self._finish_detection(optional_probes, results, answered)

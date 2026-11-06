@@ -116,6 +116,8 @@ Based on research from [BorgNumberOne/Weishaupt_CanApiJson](https://github.com/B
 
 Reads are batched at up to 6 VG frames per request with a minimum ~300ms gap enforced between requests, since larger/faster batches have been observed to cause intermittent `CMD_ERROR` responses on some hardware.
 
+When the device does not answer properly (empty reply, `CMD_ERROR` on every register, timeout or unreachable), the integration stops the current poll and pauses all requests for 2 minutes, then 4, 8, 16 and at most 30 minutes on each further failure. The first healthy reply ends the pause. Meanwhile the entities are unavailable and switching is refused with a message. Retrying a struggling Systemgerät right away has been observed to lock its JSON interface until it is powered off ([jvejmelka/weishaupt-wem-can-esphome](https://github.com/jvejmelka/weishaupt-wem-can-esphome/blob/main/PROTOKOLL.md#8-wann-sich-der-wem-aufh%C3%A4ngt)). For the same reason, writes (Betriebsart, Warmwasser switch, Warmwasser-Push) are limited to one per minute. Only one client should use the JSON interface at a time.
+
 ## License
 
 MIT

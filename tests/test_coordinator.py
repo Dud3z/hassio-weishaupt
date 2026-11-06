@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
 import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
@@ -35,6 +36,10 @@ sys.modules.setdefault("homeassistant.components", components_pkg)
 sensor_component = types.ModuleType("homeassistant.components.sensor")
 
 
+class SensorEntity:
+    """Minimal sensor entity stub, for test modules loaded after this one."""
+
+
 class SensorDeviceClass:
     """Return the requested enum member name as a string."""
 
@@ -49,12 +54,14 @@ class SensorStateClass:
         return name
 
 
+sensor_component.SensorEntity = SensorEntity
 sensor_component.SensorDeviceClass = SensorDeviceClass()
 sensor_component.SensorStateClass = SensorStateClass()
 sys.modules.setdefault("homeassistant.components.sensor", sensor_component)
 
 core = types.ModuleType("homeassistant.core")
 core.HomeAssistant = object
+core.callback = lambda func: func
 sys.modules.setdefault("homeassistant.core", core)
 
 const = types.ModuleType("homeassistant.const")
@@ -91,6 +98,17 @@ class UpdateFailed(Exception):
     """Minimal update failure stub."""
 
 
+class CoordinatorEntity:
+    """Minimal coordinator entity stub, for test modules loaded after this one."""
+
+    def __class_getitem__(cls, item):
+        return cls
+
+    def __init__(self, coordinator) -> None:
+        self.coordinator = coordinator
+
+
+update_coordinator.CoordinatorEntity = CoordinatorEntity
 update_coordinator.DataUpdateCoordinator = DataUpdateCoordinator
 update_coordinator.UpdateFailed = UpdateFailed
 sys.modules.setdefault("homeassistant.helpers.update_coordinator", update_coordinator)
@@ -123,7 +141,12 @@ class WeishauptConnectionError(WeishauptApiError):
     """Stub connection error."""
 
 
+class WeishauptRequestBlockedError(WeishauptApiError):
+    """Stub blocked-request error."""
+
+
 api_stub.WeishauptApiClient = WeishauptApiClient
+api_stub.WeishauptRequestBlockedError = WeishauptRequestBlockedError
 api_stub.WeishauptApiError = WeishauptApiError
 api_stub.WeishauptConnectionError = WeishauptConnectionError
 sys.modules["custom_components.weishaupt_wtc.api"] = api_stub
@@ -267,6 +290,37 @@ class CoordinatorOptionalGroupDetectionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn(hk_key, keys)
         self.assertFalse(keys & {sol_key, hk3_key})
         self.assertEqual(stored, [])
+
+
+class PausingClient:
+    """Fails the first read and reports a pause, like the real client's backoff."""
+
+    def __init__(self, pause_remaining: float) -> None:
+        self.pause_remaining = pause_remaining
+        self.reads = 0
+
+    async def read_parameters_with_status(self, params: list[dict]) -> tuple[dict, set]:
+        self.reads += 1
+        if self.reads == 1:
+            raise WeishauptConnectionError("empty reply")
+        return {params[0]["key"]: {"value_int": 0}}, {params[0]["key"]}
+
+
+class CoordinatorBackoffTests(unittest.IsolatedAsyncioTestCase):
+    """The coordinator waits out the client's pause instead of polling every scan interval."""
+
+    async def test_failed_poll_waits_for_pause_then_restores_scan_interval(self) -> None:
+        client = PausingClient(pause_remaining=240)
+        coordinator = coordinator_module.WeishauptDataUpdateCoordinator(
+            hass=SimpleNamespace(), client=client, scan_interval=30, active_groups=set()
+        )
+
+        with self.assertRaises(UpdateFailed):
+            await coordinator._async_update_data()
+        self.assertEqual(coordinator.update_interval, timedelta(seconds=240))
+
+        await coordinator._async_update_data()
+        self.assertEqual(coordinator.update_interval, timedelta(seconds=30))
 
 
 if __name__ == "__main__":

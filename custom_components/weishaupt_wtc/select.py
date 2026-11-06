@@ -11,10 +11,12 @@ from typing import Any
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from .api import WeishauptRequestBlockedError
 from .const import DOMAIN
 from .sensor import DEVICE_GROUP_MODELS, DEVICE_GROUP_NAMES, _device_identifier, _is_group_active, _via_device_id
 from .sensors import ALL_SENSORS, WeishauptDeviceGroup, WeishauptSensorDefinition
@@ -128,6 +130,8 @@ class WeishauptSelectEntity(CoordinatorEntity, SelectEntity):
                 vs=self._sensor_def.vs,
                 value_int=raw_value,
             )
+        except WeishauptRequestBlockedError as err:
+            raise HomeAssistantError(str(err)) from err  # nothing was sent
         except Exception as err:  # catch client errors
             _LOGGER.error(
                 "Failed to write %s=%s: %s", self._sensor_def.key, option, err

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import time
 from typing import Any
 
@@ -21,6 +22,13 @@ REQUEST_ID = "12345678"
 # blocked ~12 s); 8 and 10 did so sporadically (kraiz/hassio-weishaupt#15).
 MAX_PARAMS_PER_REQUEST = 6
 MIN_REQUEST_INTERVAL = 0.3  # seconds between requests, avoids overloading the device
+# Pause after a request the device could not serve (empty reply, no register
+# answered, unreachable); each further failure takes the next step, the first
+# healthy reply resets. Retrying a struggling WEM right away has locked its JSON
+# interface until a power cycle (jvejmelka/weishaupt-wem-can-esphome, PROTOKOLL.md §8).
+BACKOFF_STEPS = (120, 240, 480, 960, 1800)  # seconds
+# Several writes within a few minutes have locked the WEM (same source).
+MIN_WRITE_INTERVAL = 60  # seconds between writes
 
 
 class WeishauptApiError(Exception):
@@ -33,6 +41,14 @@ class WeishauptConnectionError(WeishauptApiError):
 
 class WeishauptAuthError(WeishauptApiError):
     """Exception for authentication errors."""
+
+
+class WeishauptEmptyResponseError(WeishauptConnectionError):
+    """The device replied, but without usable data (empty body or no CAPI)."""
+
+
+class WeishauptRequestBlockedError(WeishauptApiError):
+    """Raised without contacting the device: requests are paused or a write came too soon."""
 
 
 def build_vg_frame(cmd: int, mi: int, mx: int, ox: int, os_val: int, vs: int) -> str:
@@ -108,6 +124,42 @@ class WeishauptApiClient:
         self._request_lock = asyncio.Lock()
         self._last_request_at: float | None = None
         self._min_request_interval = min_request_interval
+        self._failures = 0
+        self._paused_until: float | None = None
+        self._last_write_at: float | None = None
+
+    @property
+    def pause_remaining(self) -> float:
+        """Seconds until requests to the device are allowed again (0 = not paused)."""
+        if self._paused_until is None:
+            return 0.0
+        return max(0.0, self._paused_until - time.monotonic())
+
+    def _start_pause(self) -> None:
+        """Pause all requests for the next backoff step."""
+        step = BACKOFF_STEPS[min(self._failures, len(BACKOFF_STEPS) - 1)]
+        self._failures += 1
+        self._paused_until = time.monotonic() + step
+        _LOGGER.warning(
+            "Weishaupt device at %s did not answer properly, pausing requests for %d min",
+            self._host,
+            step // 60,
+        )
+
+    def _record_success(self) -> None:
+        """End the backoff after a healthy reply."""
+        if self._failures:
+            _LOGGER.info("Weishaupt device at %s answers again", self._host)
+        self._failures = 0
+        self._paused_until = None
+
+    def _raise_if_paused(self) -> None:
+        remaining = self.pause_remaining
+        if remaining > 0:
+            raise WeishauptRequestBlockedError(
+                f"Requests to the Weishaupt device are paused for another "
+                f"{math.ceil(remaining / 60)} min after it did not answer properly"
+            )
 
     async def _ensure_session(self) -> aiohttp.ClientSession:
         """Ensure we have an active session."""
@@ -135,14 +187,27 @@ class WeishauptApiClient:
 
         Serialized through a single lock with a minimum gap between requests,
         since the device can return CMD_ERROR for individual frames when
-        requests arrive too close together.
+        requests arrive too close together. A failed request starts a pause
+        (see BACKOFF_STEPS); while it lasts, nothing is sent.
         """
         async with self._request_lock:
+            self._raise_if_paused()
             await self._wait_for_request_slot()
             try:
-                return await self._post_once(payload)
+                response = await self._post_once(payload)
+            except WeishauptAuthError:
+                raise  # wrong credentials, not a struggling device
+            except WeishauptApiError:
+                self._start_pause()
+                raise
             finally:
                 self._last_request_at = time.monotonic()
+            if not response or "CAPI" not in response:
+                self._start_pause()
+                raise WeishauptEmptyResponseError(
+                    f"Empty response from Weishaupt device at {self._host}"
+                )
+            return response
 
     async def _post_once(self, payload: dict) -> dict:
         """Perform a single HTTP POST, without throttling or locking."""
@@ -177,6 +242,12 @@ class WeishauptApiClient:
         except asyncio.TimeoutError as err:
             raise WeishauptConnectionError(
                 f"Timeout connecting to Weishaupt device at {self._host}"
+            ) from err
+        except (aiohttp.ClientError, ValueError) as err:
+            # e.g. the device dropping the connection or answering with something
+            # that is not JSON; counts as a failed request so the backoff applies.
+            raise WeishauptConnectionError(
+                f"Bad reply from Weishaupt device at {self._host}: {err}"
             ) from err
 
     async def test_connection(self) -> bool:
@@ -240,19 +311,9 @@ class WeishauptApiClient:
                 "CAPI": capi,
             }
 
-            try:
-                response = await self._post(payload)
-            except WeishauptApiError as err:
-                _LOGGER.error("Failed to read batch: %s", err)
-                continue
-
-            if not response:
-                _LOGGER.warning("Empty response from device for payload: %s", payload)
-                continue
-
-            if "CAPI" not in response:
-                _LOGGER.warning("No CAPI in response: %s", response)
-                continue
+            # A failed batch aborts the poll: sending the next batch right away is
+            # the immediate retry that has locked the WEM.
+            response = await self._post(payload)
 
             response_capi = response["CAPI"]
             for i, param in enumerate(batch):
@@ -290,6 +351,13 @@ class WeishauptApiClient:
                     answered.add(param["key"])
                     results[param["key"]] = parsed
 
+        if params and not results:
+            # CMD_ERROR on every register is how a locked WEM answers.
+            self._start_pause()
+            raise WeishauptEmptyResponseError(
+                f"Weishaupt device at {self._host} answered none of {len(params)} registers"
+            )
+        self._record_success()
         return results, answered
 
     async def write_parameter(
@@ -303,8 +371,20 @@ class WeishauptApiClient:
     ) -> bool:
         """Write a single parameter value to the device.
 
-        Returns True on success, False on failure.
+        Returns True on success, False on failure. Raises
+        WeishauptRequestBlockedError, without sending anything, while requests
+        are paused or within MIN_WRITE_INTERVAL of the previous write.
         """
+        self._raise_if_paused()
+        if self._last_write_at is not None:
+            remaining = MIN_WRITE_INTERVAL - (time.monotonic() - self._last_write_at)
+            if remaining > 0:
+                raise WeishauptRequestBlockedError(
+                    f"Wait {math.ceil(remaining)} s before the next write to the "
+                    "Weishaupt device"
+                )
+        self._last_write_at = time.monotonic()
+
         # Encode value_int as big-endian hex with vs bytes
         value_hex = f"{value_int:0{vs * 2}x}"
         vg = build_write_vg(
@@ -322,14 +402,6 @@ class WeishauptApiClient:
         except WeishauptApiError as err:
             _LOGGER.error("Failed to write parameter: %s", err)
             raise
-
-        if not response:
-            _LOGGER.debug("Empty response from device for write payload: %s", payload)
-            return False
-
-        if "CAPI" not in response:
-            _LOGGER.debug("No CAPI in write response: %s", response)
-            return False
 
         response_capi = response["CAPI"]
         key = "N01"
@@ -352,4 +424,5 @@ class WeishauptApiClient:
             _LOGGER.debug("Error response for write VG: %s", vg_str)
             return False
 
+        self._record_success()
         return True

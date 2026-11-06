@@ -55,6 +55,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         on_groups_detected=lambda groups: _store_detected_groups(hass, entry, groups),
     )
 
+    # shortcut: a failed first refresh is retried by HA's setup retry with a fresh client, so the backoff pause does not carry over (one request per retry), upgrade to reusing the client across setup retries if the WEM locks up during startup
     await coordinator.async_config_entry_first_refresh()
 
     hass.data.setdefault(DOMAIN, {})
