@@ -349,5 +349,11 @@
                 }
             }
         }
+    },
+    "issues": {
+        "device_unresponsive": {
+            "title": "Weishaupt device not answering",
+            "description": "{title} has not answered properly for {minutes} minutes. The integration keeps pausing its requests and retries at most every 30 minutes.\n\nKnown causes:\n- The WEM Portal (cloud) connection is enabled. It cannot be used at the same time as the local interface; disable it in the Systemgerät settings.\n- Another client (app, Node-RED, a second integration) uses the JSON interface at the same time.\n- The JSON interface is locked after too many requests to unknown registers. Only switching the heating off and on again (power) helps.\n\nThis notice disappears as soon as the device answers again."
+        }
     }
 }

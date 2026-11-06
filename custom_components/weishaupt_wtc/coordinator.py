@@ -11,6 +11,7 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import (
@@ -31,6 +32,10 @@ _LOGGER = logging.getLogger(__name__)
 
 type WeishauptConfigEntry = ConfigEntry[WeishauptDataUpdateCoordinator]
 
+# A device that has not answered for this long gets a repair issue explaining
+# the known causes (portal, second client, lock-up until power cycle).
+UNRESPONSIVE_ISSUE_AFTER = 1800  # seconds
+
 
 class WeishauptDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Coordinator to manage fetching data from Weishaupt device."""
@@ -42,6 +47,7 @@ class WeishauptDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         scan_interval: int = 30,
         active_groups: set[WeishauptDeviceGroup] | None = None,
         on_groups_detected: Callable[[set[WeishauptDeviceGroup]], None] | None = None,
+        config_entry: ConfigEntry | None = None,
     ) -> None:
         """Initialize the coordinator."""
         super().__init__(
@@ -49,7 +55,10 @@ class WeishauptDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _LOGGER,
             name=DOMAIN,
             update_interval=timedelta(seconds=scan_interval),
+            config_entry=config_entry,
         )
+        # time.monotonic() of the first failed poll in the current streak.
+        self._failing_since: float | None = None
         self.client = client
         self._scan_interval = timedelta(seconds=scan_interval)
         # None until detection has run; then the optional groups (HK, HK3, SOL, ...)
@@ -136,6 +145,7 @@ class WeishauptDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except WeishauptAuthError as err:
             raise ConfigEntryAuthFailed(str(err)) from err  # HA asks for new credentials
         except WeishauptApiError as err:
+            self._track_unresponsive(failed=True)
             # Next poll once the client's backoff pause is over, not every scan interval.
             self.update_interval = max(
                 self._scan_interval, timedelta(seconds=self.client.pause_remaining)
@@ -144,6 +154,7 @@ class WeishauptDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 raise UpdateFailed(f"Connection error: {err}") from err
             raise UpdateFailed(f"API error: {err}") from err
         self.update_interval = self._scan_interval
+        self._track_unresponsive(failed=False)
 
         if detecting:
             self._finish_detection(optional_probes, results, answered)
@@ -156,6 +167,37 @@ class WeishauptDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             data.pop(param["key"], None)
         data.update(results)
         return data
+
+    @property
+    def unresponsive_issue_id(self) -> str:
+        """Repair issue id for this config entry."""
+        return f"device_unresponsive_{self.config_entry.entry_id}"
+
+    def _track_unresponsive(self, failed: bool) -> None:
+        """Raise a repair issue after a long failure streak; clear it on recovery."""
+        if self.config_entry is None:
+            return
+        if not failed:
+            if self._failing_since is not None:
+                self._failing_since = None
+                ir.async_delete_issue(self.hass, DOMAIN, self.unresponsive_issue_id)
+            return
+        now = time.monotonic()
+        if self._failing_since is None:
+            self._failing_since = now
+        if now - self._failing_since >= UNRESPONSIVE_ISSUE_AFTER:
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                self.unresponsive_issue_id,
+                is_fixable=False,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key="device_unresponsive",
+                translation_placeholders={
+                    "title": self.config_entry.title,
+                    "minutes": str(round((now - self._failing_since) / 60)),
+                },
+            )
 
     def _finish_detection(
         self,

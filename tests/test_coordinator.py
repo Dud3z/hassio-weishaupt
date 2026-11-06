@@ -272,5 +272,75 @@ class CoordinatorPollIntervalTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("wtc_anlagendruck", self.coordinator.data)
 
 
+class FlakyClient:
+    """Fails while `failing` is set, like a device that stopped answering."""
+
+    def __init__(self, error: Exception) -> None:
+        self.failing = True
+        self.error = error
+        self.pause_remaining = 0
+
+    async def read_parameters_with_status(self, params: list[dict]) -> tuple[dict, set]:
+        if self.failing:
+            raise self.error
+        key = params[0]["key"]
+        return {key: {"value_int": 0}}, {key}
+
+
+class CoordinatorRepairIssueTests(unittest.IsolatedAsyncioTestCase):
+    """A device that stays unresponsive gets a repair issue, cleared on recovery."""
+
+    async def asyncSetUp(self) -> None:
+        ha_stubs.issues.clear()
+        self.now = 1000.0
+        patcher = patch.object(coordinator_module.time, "monotonic", lambda: self.now)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def make(self, client):
+        return coordinator_module.WeishauptDataUpdateCoordinator(
+            hass=SimpleNamespace(),
+            client=client,
+            scan_interval=30,
+            active_groups=set(),
+            config_entry=SimpleNamespace(entry_id="entry-123", title="Weishaupt WTC (wem-sg)"),
+        )
+
+    async def poll_at(self, coordinator, seconds: float) -> None:
+        self.now = 1000.0 + seconds
+        coordinator._last_read.clear()
+        try:
+            await coordinator._async_update_data()
+        except Exception:  # noqa: BLE001 - failures are what these tests drive
+            pass
+
+    async def test_issue_after_30_minutes_and_cleared_on_recovery(self) -> None:
+        client = FlakyClient(WeishauptConnectionError("timeout"))
+        coordinator = self.make(client)
+        issue_id = "device_unresponsive_entry-123"
+
+        await self.poll_at(coordinator, 0)
+        await self.poll_at(coordinator, 29 * 60)
+        self.assertNotIn(issue_id, ha_stubs.issues)
+
+        await self.poll_at(coordinator, 30 * 60)
+        self.assertEqual(ha_stubs.issues[issue_id]["translation_key"], "device_unresponsive")
+        self.assertEqual(ha_stubs.issues[issue_id]["translation_placeholders"]["minutes"], "30")
+
+        client.failing = False
+        await self.poll_at(coordinator, 31 * 60)
+        self.assertNotIn(issue_id, ha_stubs.issues)
+
+    async def test_wrong_credentials_raise_no_issue(self) -> None:
+        """Rejected credentials have their own reauth flow."""
+        client = FlakyClient(ha_stubs.load("api").WeishauptAuthError("401"))
+        coordinator = self.make(client)
+
+        await self.poll_at(coordinator, 0)
+        await self.poll_at(coordinator, 60 * 60)
+
+        self.assertEqual(ha_stubs.issues, {})
+
+
 if __name__ == "__main__":
     unittest.main()

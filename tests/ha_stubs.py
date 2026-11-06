@@ -124,6 +124,9 @@ class FakeDeviceRegistry:
 
 fake_device_registry = FakeDeviceRegistry()
 
+# Repair issues created through homeassistant.helpers.issue_registry, by issue id.
+issues: dict[str, dict] = {}
+
 
 # --- homeassistant.config_entries / data_entry_flow --------------------------
 
@@ -275,6 +278,14 @@ def _install() -> None:
     _module(
         "homeassistant.helpers.aiohttp_client",
         async_get_clientsession=lambda hass: ClientSession(),
+    )
+    _module(
+        "homeassistant.helpers.issue_registry",
+        IssueSeverity=SimpleNamespace(WARNING="warning", ERROR="error"),
+        async_create_issue=lambda hass, domain, issue_id, **kwargs: issues.__setitem__(
+            issue_id, kwargs
+        ),
+        async_delete_issue=lambda hass, domain, issue_id: issues.pop(issue_id, None),
     )
     _module(
         "homeassistant.helpers.update_coordinator",

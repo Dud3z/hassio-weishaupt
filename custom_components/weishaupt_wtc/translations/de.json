@@ -349,5 +349,11 @@
                 }
             }
         }
+    },
+    "issues": {
+        "device_unresponsive": {
+            "title": "Weishaupt-Gerät antwortet nicht",
+            "description": "{title} antwortet seit {minutes} Minuten nicht richtig. Die Integration pausiert ihre Anfragen und versucht es höchstens alle 30 Minuten erneut.\n\nBekannte Ursachen:\n- Die WEM-Portal-Verbindung (Cloud) ist aktiv. Sie lässt sich nicht gleichzeitig mit der lokalen Schnittstelle nutzen; in den Einstellungen des Systemgeräts abschalten.\n- Ein weiterer Client (App, Node-RED, eine zweite Integration) nutzt gleichzeitig die JSON-Schnittstelle.\n- Die JSON-Schnittstelle ist nach zu vielen Anfragen an unbekannte Register gesperrt. Dann hilft nur, die Heizung kurz stromlos zu machen.\n\nDieser Hinweis verschwindet, sobald das Gerät wieder antwortet."
+        }
     }
 }

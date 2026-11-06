@@ -349,5 +349,11 @@
                 }
             }
         }
+    },
+    "issues": {
+        "device_unresponsive": {
+            "title": "Il dispositivo Weishaupt non risponde",
+            "description": "{title} non risponde correttamente da {minutes} minuti. L'integrazione sospende le richieste e riprova al massimo ogni 30 minuti.\n\nCause note:\n- La connessione al WEM Portal (cloud) è attiva. Non può essere usata insieme all'interfaccia locale; disattivarla nelle impostazioni del Systemgerät.\n- Un altro client (app, Node-RED, una seconda integrazione) usa contemporaneamente l'interfaccia JSON.\n- L'interfaccia JSON è bloccata dopo troppe richieste a registri sconosciuti. Aiuta solo spegnere e riaccendere il riscaldamento (alimentazione).\n\nQuesto avviso scompare non appena il dispositivo risponde di nuovo."
+        }
     }
 }
