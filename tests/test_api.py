@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import importlib.util
 from pathlib import Path
 import sys
@@ -188,6 +189,17 @@ class ApiClientBackoffTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(client.pause_remaining, 0)
 
+    async def test_malformed_json_reply_pauses(self) -> None:
+        """Valid JSON of the wrong shape is a failed reply, not a crash."""
+        for reply in ([], "busy", {"CAPI": None}):
+            client = ScriptedClient([reply])
+
+            with self.assertLogs("custom_components.weishaupt_wtc.api", level="WARNING"):
+                with self.assertRaises(api.WeishauptEmptyResponseError):
+                    await client.read_parameters([READ_PARAM])
+
+            self.assertGreater(client.pause_remaining, 0)
+
 
 class ApiClientWriteThrottleTests(unittest.IsolatedAsyncioTestCase):
     """At most one write per MIN_WRITE_INTERVAL."""
@@ -204,6 +216,25 @@ class ApiClientWriteThrottleTests(unittest.IsolatedAsyncioTestCase):
         client._last_write_at -= api.MIN_WRITE_INTERVAL
         self.assertTrue(await client.write_parameter(0x03, 0x00, 0x2520, 0x02, 1, 1))
         self.assertEqual(client.sent, 2)
+
+    async def test_write_blocked_by_a_pause_keeps_the_write_slot(self) -> None:
+        """A pause that starts while the write waits for the lock sends nothing,
+        so the next write must not have to wait a minute."""
+        client = ScriptedClient([WRITE_ACK])
+
+        async with client._request_lock:
+            write = asyncio.ensure_future(
+                client.write_parameter(0x03, 0x00, 0x2520, 0x02, 1, 2)
+            )
+            await asyncio.sleep(0)  # the write is now queued on the lock
+            with self.assertLogs("custom_components.weishaupt_wtc.api", level="WARNING"):
+                client._start_pause()
+        with self.assertRaises(api.WeishauptRequestBlockedError):
+            await write
+
+        client.end_pause()
+        self.assertTrue(await client.write_parameter(0x03, 0x00, 0x2520, 0x02, 1, 2))
+        self.assertEqual(client.sent, 1)
 
 
 class BatchCountingClient(api.WeishauptApiClient):

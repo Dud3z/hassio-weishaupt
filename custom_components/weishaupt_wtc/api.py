@@ -202,7 +202,7 @@ class WeishauptApiClient:
                 raise
             finally:
                 self._last_request_at = time.monotonic()
-            if not response or "CAPI" not in response:
+            if not isinstance(response, dict) or not isinstance(response.get("CAPI"), dict):
                 self._start_pause()
                 raise WeishauptEmptyResponseError(
                     f"Empty response from Weishaupt device at {self._host}"
@@ -399,6 +399,9 @@ class WeishauptApiClient:
 
         try:
             response = await self._post(payload)
+        except WeishauptRequestBlockedError:
+            self._last_write_at = None  # a pause began while queued; nothing was sent
+            raise
         except WeishauptApiError as err:
             _LOGGER.error("Failed to write parameter: %s", err)
             raise
