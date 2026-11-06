@@ -187,6 +187,27 @@ class SensorDeviceInfoTests(unittest.TestCase):
         self.assertEqual(entity.device_info["name"], "Weishaupt Heizkreis 2")
 
 
+class EnabledDefaultTests(unittest.TestCase):
+    """Which sensors a new installation starts with."""
+
+    def enabled_default(self, key: str):
+        sensor_def = next(d for d in sensors.ALL_SENSORS if d.key == key)
+        entity = sensor.WeishauptSensorEntity(
+            SimpleNamespace(data={}), sensor_def, SimpleNamespace(entry_id="entry-123")
+        )
+        return getattr(entity, "_attr_entity_registry_enabled_default", True)
+
+    def test_cascade_sensors_start_disabled(self) -> None:
+        """Only installations with an EM-KA cascade module need them."""
+        for key in ("sg_folgewechsel", "sg_kaskade_sollwert_ww"):
+            self.assertFalse(self.enabled_default(key), key)
+
+    def test_regular_and_opted_in_diagnostic_sensors_start_enabled(self) -> None:
+        self.assertTrue(self.enabled_default("wtc_kesseltemperatur"))
+        self.assertTrue(self.enabled_default("sg_fehlernummer"))
+        self.assertFalse(self.enabled_default("sg_canopen_fehlerblock"))
+
+
 class EntityContextTests(unittest.TestCase):
     """Entities tell the coordinator which registers they read."""
 

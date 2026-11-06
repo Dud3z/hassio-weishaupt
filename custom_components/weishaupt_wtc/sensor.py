@@ -153,18 +153,13 @@ class WeishauptSensorEntity(
             self._attr_suggested_display_precision = sensor_def.precision
 
         if sensor_def.entity_category == "diagnostic":
-            from homeassistant.helpers.entity import EntityCategory
-
             self._attr_entity_category = EntityCategory.DIAGNOSTIC
-            if sensor_def.entity_registry_enabled_default is not None:
-                self._attr_entity_registry_enabled_default = sensor_def.entity_registry_enabled_default
-            else:
-                # Disable diagnostic sensors by default in the entity registry
-                self._attr_entity_registry_enabled_default = False
+            # Diagnostic sensors start disabled unless their definition says otherwise
+            self._attr_entity_registry_enabled_default = False
         elif sensor_def.entity_category == "config":
-            from homeassistant.helpers.entity import EntityCategory
-
             self._attr_entity_category = EntityCategory.CONFIG
+        if sensor_def.entity_registry_enabled_default is not None:
+            self._attr_entity_registry_enabled_default = sensor_def.entity_registry_enabled_default
 
     @property
     def device_info(self) -> DeviceInfo:

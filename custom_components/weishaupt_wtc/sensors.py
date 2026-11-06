@@ -766,6 +766,7 @@ SG_SENSORS: list[WeishauptSensorDefinition] = [
         poll_interval=POLL_SLOW,
         icon="mdi:swap-horizontal",
         value_map=FOLGEWECHSEL_MAP,
+        entity_registry_enabled_default=False,  # only useful with a cascade (EM-KA)
     ),
     WeishauptSensorDefinition(
         key="sg_wechselzeit",
@@ -781,6 +782,7 @@ SG_SENSORS: list[WeishauptSensorDefinition] = [
         icon="mdi:timer",
         unit=UnitOfTime.HOURS,
         state_class=SensorStateClass.MEASUREMENT,
+        entity_registry_enabled_default=False,  # only useful with a cascade (EM-KA)
     ),
     WeishauptSensorDefinition(
         key="sg_kaskade_abgleichtemperatur",
@@ -798,6 +800,7 @@ SG_SENSORS: list[WeishauptSensorDefinition] = [
         unit=UnitOfTemperature.CELSIUS,
         scale=0.1,
         signed=True,
+        entity_registry_enabled_default=False,  # only useful with a cascade (EM-KA)
     ),
     WeishauptSensorDefinition(
         key="sg_kaskade_sollmodulation_hz",
@@ -813,6 +816,7 @@ SG_SENSORS: list[WeishauptSensorDefinition] = [
         unit=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
         scale=0.01,
+        entity_registry_enabled_default=False,  # only useful with a cascade (EM-KA)
     ),
     WeishauptSensorDefinition(
         key="sg_kaskade_sollmodulation_ww",
@@ -828,6 +832,7 @@ SG_SENSORS: list[WeishauptSensorDefinition] = [
         unit=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
         scale=0.01,
+        entity_registry_enabled_default=False,  # only useful with a cascade (EM-KA)
     ),
     WeishauptSensorDefinition(
         key="sg_kaskade_sollwert_hz",
@@ -844,6 +849,7 @@ SG_SENSORS: list[WeishauptSensorDefinition] = [
         unit=UnitOfTemperature.CELSIUS,
         scale=0.1,
         signed=True,
+        entity_registry_enabled_default=False,  # only useful with a cascade (EM-KA)
     ),
     WeishauptSensorDefinition(
         key="sg_kaskade_sollwert_ww",
@@ -860,6 +866,7 @@ SG_SENSORS: list[WeishauptSensorDefinition] = [
         unit=UnitOfTemperature.CELSIUS,
         scale=0.1,
         signed=True,
+        entity_registry_enabled_default=False,  # only useful with a cascade (EM-KA)
     ),
     WeishauptSensorDefinition(
         key="sg_uhrzeit_stunden",
